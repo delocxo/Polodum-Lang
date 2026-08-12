@@ -257,6 +257,12 @@ namespace Polodum
                             break;
                         }
 
+                    case Opcode.Out:
+                        {
+                            Console.Write(_stack.Pop());
+                            break;
+                        }
+
                     case Opcode.Pop:
                         {
                             _stack.Pop();

@@ -30,6 +30,7 @@ namespace Polodum
         JumpIfTrue,
         Jump,
 
+        Out,
         Pop,
         Halt
     }

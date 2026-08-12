@@ -31,6 +31,8 @@ namespace Polodum
         {
             if (Check(TokenType.Identifier))
                 return ParseIdentifier();
+            else if (Check(TokenType.Out))
+                return ParseOut();
             throw ThrowUnexpected();
         }
 
@@ -50,6 +52,19 @@ namespace Polodum
                 return new VarStmt(nameExpr.Name, expr, position);
 
             throw new Error("Invalid assign target", position);
+        }
+
+        OutStmt ParseOut()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            Expr expr = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new OutStmt(expr, position);
         }
 
         Error ThrowUnexpected()

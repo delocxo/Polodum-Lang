@@ -35,4 +35,14 @@ namespace Polodum
         public string Name { get; }
         public Expr Value { get; }
     }
+
+    internal class OutStmt : Stmt
+    {
+        public OutStmt(Expr value, Position position) : base(position, false)
+        {
+            Value = value;
+        }
+
+        public Expr Value { get; }
+    }
 }

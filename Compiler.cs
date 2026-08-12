@@ -98,6 +98,13 @@ namespace Polodum
 
                         break;
                     }
+
+                case OutStmt outStmt:
+                    {
+                        CompileExpr(outStmt.Value);
+                        Chunk.AddInstruction(new Instruction(Opcode.Out), outStmt.Position);
+                        break;
+                    }
             }
         }
 
