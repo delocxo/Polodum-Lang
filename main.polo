@@ -1,1 +1,6 @@
-out 100 * 100;
+proc greet(name)
+	out "Hello " + name + "!";
+	ret false;
+end
+
+greet("Smolenks");

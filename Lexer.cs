@@ -22,7 +22,10 @@ namespace Polodum
             { "if", TokenType.If },
             { "else", TokenType.Else },
             { "elseif", TokenType.ElseIf },
-            { "out", TokenType.Out }
+            { "out", TokenType.Out },
+            { "not", TokenType.Not },
+            { "is", TokenType.Is },
+            { "ret", TokenType.Ret }
         };
 
         static Dictionary<string, TokenType> s_symbols = new Dictionary<string, TokenType>()
@@ -46,9 +49,10 @@ namespace Polodum
             { "}", TokenType.RightBrace },
             { "&&", TokenType.And },
             { "||", TokenType.Or },
-            { "!", TokenType.Not },
+            { "!", TokenType.Bang },
             { "(", TokenType.LeftParen },
-            { ")", TokenType.RightParen }
+            { ")", TokenType.RightParen },
+            { ",", TokenType.Comma }
         };
 
         public static string? GetKeywordFromType(TokenType type)

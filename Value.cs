@@ -5,6 +5,11 @@ using System.Text;
 
 namespace Polodum
 {
+    enum ArgumentMode
+    {
+        Expected,
+    }
+
     internal struct Value
     {
         public Value(double number) : this()
@@ -25,6 +30,12 @@ namespace Polodum
             Kind = ValueKind.Bool;
         }
 
+        public Value(FunctionInfo functionInfo) : this()
+        {
+            Object = functionInfo;
+            Kind = ValueKind.Function;
+        }
+
         public override string ToString()
         {
             if (Kind == ValueKind.String)
@@ -36,7 +47,20 @@ namespace Polodum
             else if (Kind == ValueKind.Bool)
                 return Bool.ToString();
 
+            else if (Kind == ValueKind.Function)
+            {
+                string paremeters = string.Join(", ", FunctionInfo.Parameters);
+                return $"<function {FunctionInfo.Name}({paremeters})>";
+            }
+
             return "invalid type";
+        }
+
+        public string Stringify()
+        {
+            if (Kind == ValueKind.String)
+                return $"'{ToString()}'";
+            return ToString();
         }
 
         public static bool CheckEquallity(Value left, Value right)
@@ -53,6 +77,9 @@ namespace Polodum
             else if (left.IsKind(ValueKind.Bool) && right.IsKind(ValueKind.Bool))
                 return left.Bool == right.Bool;
 
+            else if (left.IsKind(ValueKind.Function) && right.IsKind(ValueKind.Function))
+                return left.FunctionInfo == right.FunctionInfo;
+
             return false;
         }
 
@@ -67,8 +94,11 @@ namespace Polodum
         public string KindName => ValueKind.GetName(Kind);
 
         public int Kind { get; }
+        public bool IsRecord { get; } = false;
         public double Number { get; }
         public string String { get; } = string.Empty;
         public bool Bool { get; }
+        public object? Object { get; }
+        public FunctionInfo FunctionInfo => (FunctionInfo)Object!;
     }
 }

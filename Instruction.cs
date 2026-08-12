@@ -28,10 +28,15 @@ namespace Polodum
 
         JumpIfFalse,
         JumpIfTrue,
+        JumpIfFalsePop,
+        JumpIfTruePop,
         Jump,
+
+        Call,
 
         Out,
         Pop,
+        Ret,
         Halt
     }
 

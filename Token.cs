@@ -9,14 +9,15 @@ namespace Polodum
         String, Number, Identifier,
 
         True, False, Mut, End, Do, Proc, For,
-        If, Else, ElseIf, Out,
+        If, Else, ElseIf, Out, Not, Is, Ret,
 
         Add, Sub, Mul, Div, Mod,
         IsEqual, NotEqual, Less, Greater,
-        LessEq, GreaterEq, And, Or, Not,
+        LessEq, GreaterEq, And, Or, Bang,
 
         Equal, Semicolon, LeftBracket, RightBracket,
         LeftBrace, RightBrace, LeftParen, RightParen,
+        Comma,
 
         Eof,
     }

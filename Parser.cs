@@ -33,6 +33,10 @@ namespace Polodum
                 return ParseIdentifier();
             else if (Check(TokenType.Out))
                 return ParseOut();
+            else if (Check(TokenType.Ret))
+                return ParseRet();
+            else if (Check(TokenType.Proc))
+                return ParseProc();
             throw ThrowUnexpected();
         }
 
@@ -41,6 +45,12 @@ namespace Polodum
             Position position = Current().Position;
 
             Expr assignee = ParsePostfix();
+
+            if (assignee is CallExpr callExpr)
+            {
+                Expect(TokenType.Semicolon);
+                return new CallStmt(callExpr, position);
+            }
 
             Expect(TokenType.Equal);
 
@@ -67,6 +77,38 @@ namespace Polodum
             return new OutStmt(expr, position);
         }
 
+        RetStmt ParseRet()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            Expr expr = ParseExpr();
+            Expr? condition = null;
+
+            if (Match(TokenType.If))
+                condition = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new RetStmt(expr, condition, position);
+        }
+
+        ProcStmt ParseProc()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            string name = ParseName();
+
+            List<string> paremeters = ParseNames(TokenType.LeftParen, TokenType.RightParen);
+
+            List<Stmt> body = ParseBody(false);
+
+            return new ProcStmt(name, paremeters, body, position);
+        }
+
         Error ThrowUnexpected()
         {
             Token token = Current();
@@ -87,24 +129,63 @@ namespace Polodum
             return name;
         }
 
-        List<Stmt> ParseBody()
+        List<Stmt> ParseBody(bool usesDo)
         {
             List<Stmt> stmts = new List<Stmt>();
 
-            if (!Check(TokenType.LeftBrace))
-            {
-                stmts.Add(ParseStmt());
-                return stmts;
-            }
+            if (usesDo)
+                Expect(TokenType.Do);
 
-            Expect(TokenType.LeftBrace);
-
-            while (NotAtEnd() && !Check(TokenType.RightBrace))
+            while (NotAtEnd() && !Check(TokenType.End))
                 stmts.Add(ParseStmt());
 
-            Expect(TokenType.RightBrace);
+            Expect(TokenType.End);
 
             return stmts;
+        }
+
+        List<string> ParseNames(TokenType end)
+        {
+            if (Match(end))
+                return new List<string>();
+
+            List<string> names = new List<string>()
+            {
+                ParseName()
+            };
+
+            while (Match(TokenType.Comma))
+                names.Add(ParseName());
+
+            Expect(end);
+
+            return names;
+        }
+
+        List<string> ParseNames(TokenType start, TokenType end)
+        {
+            Expect(start);
+            return ParseNames(end);
+        }
+
+        List<Expr> ParseArgs(TokenType start, TokenType end)
+        {
+            Expect(start);
+
+            if (Match(end))
+                return new List<Expr>();
+
+            List<Expr> args = new List<Expr>()
+            {
+                ParseExpr()
+            };
+
+            while (Match(TokenType.Comma))
+                args.Add(ParseExpr());
+
+            Expect(end);
+
+            return args;
         }
 
         bool Check(params TokenType[] types)
@@ -116,7 +197,9 @@ namespace Polodum
         }
 
         Token Current() => _tokens[_i];
+        Token Peek() => _tokens[_i + 1];
         bool NotAtEnd() => !Check(TokenType.Eof);
+        bool PeekNotAtEnd() => _i + 1 < _tokens.Count;
         bool AtEnd() => Check(TokenType.Eof);
         void Next() => _i++;
 
@@ -184,12 +267,27 @@ namespace Polodum
         Expr ParsePostfix()
         {
             Expr left = ParsePrimary();
+            while (Check(TokenType.LeftParen))
+            {
+                if (Check(TokenType.LeftParen))
+                {
+                    Position position = Current().Position;
+
+                    List<Expr> args = ParseArgs(TokenType.LeftParen, TokenType.RightParen);
+
+                    left = new CallExpr(left, args, position);
+
+                    continue;
+                }
+
+                break;
+            }
             return left;
         }
 
         Expr ParseUnary()
         {
-            if (Check(TokenType.Sub, TokenType.Not))
+            if (Check(TokenType.Sub, TokenType.Bang))
             {
                 Token op = Current();
 

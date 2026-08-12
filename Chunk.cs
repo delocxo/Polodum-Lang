@@ -4,6 +4,22 @@ using System.Text;
 
 namespace Polodum
 {
+    internal class FunctionInfo
+    {
+        public FunctionInfo(string name, List<string> parameters)
+        {
+            Name = name;
+            Arity = parameters.Count;
+            Chunk = new Chunk();
+            Parameters = parameters;
+        }
+
+        public string Name { get; }
+        public int Arity { get; }
+        public Chunk Chunk { get; set; }
+        public List<string> Parameters { get; }
+    }
+
     internal class Chunk
     {
         public List<Position> Positions { get; } = new List<Position>();
@@ -21,6 +37,9 @@ namespace Polodum
 
         public int AddConstant(Value value)
         {
+            int foundIndex = Constants.IndexOf(value);
+            if (foundIndex != -1)
+                return foundIndex;
             int index = Constants.Count;
             Constants.Add(value);
             return index;

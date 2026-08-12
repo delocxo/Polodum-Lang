@@ -10,23 +10,26 @@ namespace Polodum
     internal record BoolExpr(bool Value, Position Position) : Expr(Position);
     internal record NameExpr(string Name, Position Position) : Expr(Position);
     internal record UnaryExpr(Expr Right, TokenType Op, Position Position) : Expr(Position);
+    internal record CallExpr(Expr Callee, List<Expr> Arguments, Position Position) : Expr(Position);
     internal record BinaryExpr(Expr Left, Expr Right, TokenType Op, Position Position) : Expr(Position);
 
     internal abstract class Stmt
     {
-        public Stmt(Position position, bool topLevel)
+        public Stmt(Position position, bool topLevel, bool allowedAtLocalScope)
         {
             Position = position;
             AllowedInImport = topLevel;
+            AllowedAtLocalScope = allowedAtLocalScope;
         }
 
         public Position Position { get; }
         public bool AllowedInImport { get; }
+        public bool AllowedAtLocalScope { get; }
     }
 
     internal class VarStmt : Stmt
     {
-        public VarStmt(string name, Expr value, Position position) : base(position, false)
+        public VarStmt(string name, Expr value, Position position) : base(position, false, true)
         {
             Name = name;
             Value = value;
@@ -38,11 +41,47 @@ namespace Polodum
 
     internal class OutStmt : Stmt
     {
-        public OutStmt(Expr value, Position position) : base(position, false)
+        public OutStmt(Expr value, Position position) : base(position, false, true)
         {
             Value = value;
         }
 
         public Expr Value { get; }
+    }
+
+    internal class RetStmt : Stmt
+    {
+        public RetStmt(Expr value, Expr? condition, Position position) : base(position, false, true)
+        {
+            Value = value;
+            Condition = condition;
+        }
+
+        public Expr Value { get; }
+        public Expr? Condition { get; }
+    }
+
+    internal class ProcStmt : Stmt
+    {
+        public ProcStmt(string name, List<string> paremeters, List<Stmt> body, Position position) : base(position, true, false)
+        {
+            Name = name;
+            Paremeters = paremeters;
+            Body = body;
+        }
+
+        public string Name { get; }
+        public List<string> Paremeters { get; }
+        public List<Stmt> Body { get; }
+    }
+
+    internal class CallStmt : Stmt
+    {
+        public CallStmt(CallExpr callExpr, Position position) : base(position, false, true)
+        {
+            CallExpr = callExpr;
+        }
+
+        public CallExpr CallExpr { get; }
     }
 }

@@ -9,12 +9,13 @@ namespace Polodum
 
     internal class Compiler
     {
-        public Chunk Chunk { get; } = new Chunk();
+        public Chunk Chunk { get; set; } = new Chunk();
         public Stack<Scope> Scopes { get; } = new Stack<Scope>();
+        public Scope Globals { get; set; } = new Scope();
 
         bool _isGlobal;
         Dictionary<string, bool> _compiledFiles = new Dictionary<string, bool>();
-        Scope _globals = new Scope();
+        Dictionary<string, FunctionInfo> _functions = new Dictionary<string, FunctionInfo>();
 
         bool IsGlobal => _isGlobal || Scopes.Count == 0;
 
@@ -54,7 +55,20 @@ namespace Polodum
             foreach (Stmt stmt in ast)
             {
                 if (!isEntry && !stmt.AllowedInImport)
-                    throw new Error("Statement cannot be used at the top level", stmt.Position);
+                    throw new Error($"{stmt.GetType().Name} statement cannot be used at the top level", stmt.Position);
+
+                if (stmt is ProcStmt procStmt)
+                {
+                    if (_functions.ContainsKey(procStmt.Name))
+                        throw new Error($"Function '{procStmt.Name}' is already an existing function", procStmt.Position);
+
+                    CheckForDuplicateNames(procStmt.Paremeters, " is a duplicate function parameter", procStmt.Position);
+
+                    if (procStmt.Body.Count == 0 || procStmt.Body.Last() is not RetStmt retStmt || retStmt.Condition != null)
+                        throw new Error($"Function '{procStmt.Name}' requires an explicit ret", procStmt.Position);
+
+                    _functions.Add(procStmt.Name, new FunctionInfo(procStmt.Name, procStmt.Paremeters));
+                }
             }
             foreach (Stmt stmt in ast)
                 CompileStmt(stmt);
@@ -62,10 +76,39 @@ namespace Polodum
             _compiledFiles[path] = true;
         }
 
+        public void CompileStmts(List<Stmt> ast)
+        {
+            foreach (Stmt stmt in ast)
+                CompileStmt(stmt);
+        }
+
         void CompileStmt(Stmt stmt)
         {
+            if (!IsGlobal && !stmt.AllowedAtLocalScope)
+                throw new Error($"{stmt.GetType().Name} statement cannot be used in a local scope", stmt.Position);
+
             switch (stmt)
             {
+                case ProcStmt procStmt:
+                    {
+                        Compiler compiler = new Compiler(false)
+                        {
+                            Globals = Globals
+                        };
+
+                        foreach (string parameter in procStmt.Paremeters)
+                            compiler.Scopes
+                                .Peek()
+                                .Add(parameter, compiler.Chunk.LocalCount++);
+
+                        compiler.CompileStmts(procStmt.Body);
+
+                        FunctionInfo functionInfo = _functions[procStmt.Name];
+                        functionInfo.Chunk = compiler.Chunk;
+
+                        break;
+                    }
+
                 case VarStmt varStmt:
                     {
                         CompileExpr(varStmt.Value);
@@ -77,7 +120,7 @@ namespace Polodum
                             Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, local), varStmt.Position);
                             break;
                         }
-                        else if (_globals.TryGetValue(varStmt.Name, out int global))
+                        else if (Globals.TryGetValue(varStmt.Name, out int global))
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.StoreGlobal, global), varStmt.Position);
                             break;
@@ -86,7 +129,7 @@ namespace Polodum
                         if (IsGlobal)
                         {
                             int nextSlot = Chunk.GlobalCount++;
-                            _globals.Add(varStmt.Name, nextSlot);
+                            Globals.Add(varStmt.Name, nextSlot);
                             Chunk.AddInstruction(new Instruction(Opcode.StoreGlobal, nextSlot), varStmt.Position);
                         }
                         else
@@ -103,6 +146,36 @@ namespace Polodum
                     {
                         CompileExpr(outStmt.Value);
                         Chunk.AddInstruction(new Instruction(Opcode.Out), outStmt.Position);
+                        break;
+                    }
+
+                case RetStmt retStmt:
+                    {
+                        if (retStmt.Condition != null)
+                        {
+                            CompileExpr(retStmt.Condition);
+
+                            int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), retStmt.Position);
+
+                            CompileExpr(retStmt.Value);
+
+                            Chunk.AddInstruction(new Instruction(Opcode.Ret), retStmt.Position);
+
+                            Chunk.PatchJump(jumpIfFalse);
+
+                            break;
+                        }
+
+                        CompileExpr(retStmt.Value);
+                        Chunk.AddInstruction(new Instruction(Opcode.Ret), retStmt.Position);
+
+                        break;
+                    }
+
+                case CallStmt callStmt:
+                    {
+                        CompileExpr(callStmt.CallExpr);
+                        Chunk.AddInstruction(new Instruction(Opcode.Pop), callStmt.Position);
                         break;
                     }
             }
@@ -135,7 +208,12 @@ namespace Polodum
 
                 case NameExpr nameExpr:
                     {
-                        if (TryResolveLocal(nameExpr.Name, out int local))
+                        if (_functions.TryGetValue(nameExpr.Name, out FunctionInfo? functionInfo))
+                        {
+                            int constant = Chunk.AddConstant(new Value(functionInfo));
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, constant), nameExpr.Position);
+                        }
+                        else if (TryResolveLocal(nameExpr.Name, out int local))
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, local), nameExpr.Position);
                         }
@@ -152,10 +230,18 @@ namespace Polodum
                         Opcode op = unaryExpr.Op switch
                         {
                             TokenType.Sub => Opcode.Neg,
-                            TokenType.Not => Opcode.Not,
+                            TokenType.Bang => Opcode.Not,
                             _ => throw new UnreachableException()
                         };
                         Chunk.AddInstruction(new Instruction(op), unaryExpr.Position);
+                        break;
+                    }
+
+                case CallExpr callExpr:
+                    {
+                        callExpr.Arguments.ForEach(CompileExpr);
+                        CompileExpr(callExpr.Callee);
+                        Chunk.AddInstruction(new Instruction(Opcode.Call, callExpr.Arguments.Count), callExpr.Position);
                         break;
                     }
 
@@ -235,9 +321,18 @@ namespace Polodum
 
         bool TryResolveGlobal(string name, out int local)
         {
-            return _globals.TryGetValue(name, out local);
+            return Globals.TryGetValue(name, out local);
+        }
+
+        void CheckForDuplicateNames(List<string> names, string message, Position position)
+        {
+            HashSet<string> namesSet = new HashSet<string>();
+            foreach (string name in names)
+                if (!namesSet.Add(name))
+                    throw new Error($"'{name}' {message}", position); 
         }
 
         public void AddHalt() => Chunk.Instructions.Add(new Instruction(Opcode.Halt));
+
     }
 }
