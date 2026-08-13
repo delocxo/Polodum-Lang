@@ -25,6 +25,7 @@ namespace Polodum
         public static int String = Register("string");
         public static int Bool = Register("bool");
         public static int Function = Register("function");
+        public static int Array = Register("array");
 
         public static int Register(string name)
         {

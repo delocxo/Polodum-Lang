@@ -64,6 +64,22 @@ namespace Polodum
                         stack.Push(callFrame.GetConstant(instruction.A));
                         break;
 
+                    case Opcode.MakeArray:
+                        {
+                            int argCount = instruction.A;
+
+                            PoloArray array = new PoloArray(argCount);
+
+                            for (int i = 0; i < argCount; i++)
+                                array.Add(default);
+
+                            for (int i = argCount - 1; i >= 0; i--)
+                                array[i] = stack.Pop();
+
+                            stack.Push(new Value(array));
+                            break;
+                        }
+
                     case Opcode.Add:
                         {
                             Value right = stack.Pop();
@@ -304,7 +320,62 @@ namespace Polodum
                                 break;
                             }
 
-                            throw new Error($"type '{target.KindName}' is not callable", callFrame.GetPosition(instruction));
+                            throw new Error($"Type '{target.KindName}' is not callable", callFrame.GetPosition(instruction));
+                        }
+
+                    case Opcode.Index:
+                        {
+                            Position position = callFrame.GetPosition(instruction);
+
+                            Value target = stack.Pop();
+
+                            target = target
+                                .ExpectKinds($"Type '{target.KindName}' cannot be indexed", position, ValueKind.Array, ValueKind.String);
+
+                            Value index = stack.Pop();
+
+                            if (target.Kind == ValueKind.Array)
+                            {
+                                PoloArray array = target.Array;
+
+                                int raw = index.ExpectIntInRangeEx(0, array.Count, "Array index out of range", position);
+
+                                stack.Push(array[raw]);
+
+                                break;
+                            }
+                            else
+                            {
+                                string str = target.String;
+
+                                int raw = index.ExpectIntInRangeEx(0, str.Length, "String index out of range", position);
+
+                                stack.Push(new Value(str[raw].ToString()));
+
+                                break;
+                            }
+                        }
+
+                    case Opcode.IndexSet:
+                        {
+                            Position position = callFrame.GetPosition(instruction);
+
+                            Value target = stack.Pop();
+
+                            target = target
+                                .ExpectKinds($"Type '{target.KindName}' cannot be indexed", position, ValueKind.Array);
+
+                            Value index = stack.Pop();
+
+                            Value value = stack.Pop();
+
+                            PoloArray array = target.Array;
+
+                            int raw = index.ExpectIntInRangeEx(0, array.Count, "Array index out of range", position);
+
+                            array[raw] = value;
+
+                            break;
                         }
 
                     case Opcode.Out:

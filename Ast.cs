@@ -11,6 +11,8 @@ namespace Polodum
     internal record NameExpr(string Name, Position Position) : Expr(Position);
     internal record UnaryExpr(Expr Right, TokenType Op, Position Position) : Expr(Position);
     internal record CallExpr(Expr Callee, List<Expr> Arguments, Position Position) : Expr(Position);
+    internal record ArrayExpr(List<Expr> Exprs, Position Position) : Expr(Position);
+    internal record IndexExpr(Expr Target, Expr Index, Position Position) : Expr(Position);
     internal record BinaryExpr(Expr Left, Expr Right, TokenType Op, Position Position) : Expr(Position);
 
     internal abstract class Stmt
@@ -149,5 +151,17 @@ namespace Polodum
 
         public Expr Condition { get; }
         public List<Stmt> Body { get; }
+    }
+
+    internal class IndexSetStmt : Stmt
+    {
+        public IndexSetStmt(IndexExpr indexExpr, Expr value, Position position) : base(position, false, true)
+        {
+            IndexExpr = indexExpr;
+            Value = value;
+        }
+
+        public IndexExpr IndexExpr { get; }
+        public Expr Value { get; }
     }
 }

@@ -37,9 +37,10 @@ namespace Polodum
 
         public int AddConstant(Value value)
         {
-            int foundIndex = Constants.IndexOf(value);
-            if (foundIndex != -1)
-                return foundIndex;
+            for (int i = 0; i < Constants.Count; i++)
+                if (Value.CheckEquallity(value, Constants[i]))
+                    return i;
+            
             int index = Constants.Count;
             Constants.Add(value);
             return index;

@@ -70,6 +70,8 @@ namespace Polodum
 
             if (assignee is NameExpr nameExpr)
                 return new VarStmt(nameExpr.Name, expr, position);
+            else if (assignee is IndexExpr indexExpr)
+                return new IndexSetStmt(indexExpr, expr, position);
 
             throw new Error("Invalid assign target", position);
         }
@@ -383,6 +385,11 @@ namespace Polodum
                 Expect(TokenType.RightParen);
                 return expr;
             }
+            else if (Check(TokenType.LeftBracket))
+            {
+                List<Expr> exprs = ParseArgs(TokenType.LeftBracket, TokenType.RightBracket);
+                return new ArrayExpr(exprs, token.Position);
+            }
 
             throw new Error("Invalid expression", token.Position);
         }
@@ -390,7 +397,7 @@ namespace Polodum
         Expr ParsePostfix()
         {
             Expr left = ParsePrimary();
-            while (Check(TokenType.LeftParen))
+            while (Check(TokenType.LeftParen, TokenType.LeftBracket))
             {
                 if (Check(TokenType.LeftParen))
                 {
@@ -399,6 +406,21 @@ namespace Polodum
                     List<Expr> args = ParseArgs(TokenType.LeftParen, TokenType.RightParen);
 
                     left = new CallExpr(left, args, position);
+
+                    continue;
+                }
+
+                if (Check(TokenType.LeftBracket))
+                {
+                    Position position = Current().Position;
+
+                    Expect(TokenType.LeftBracket);
+
+                    Expr index = ParseExpr();
+
+                    Expect(TokenType.RightBracket);
+
+                    left = new IndexExpr(left, index, position);
 
                     continue;
                 }

@@ -11,6 +11,7 @@ namespace Polodum
         LoadGlobal,
         StoreGlobal,
         LoadConst,
+        MakeArray,
 
         Add,
         Sub,
@@ -33,6 +34,8 @@ namespace Polodum
         Jump,
 
         Call,
+        Index,
+        IndexSet,
 
         Out,
         Pop,

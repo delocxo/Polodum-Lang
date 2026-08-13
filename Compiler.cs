@@ -56,6 +56,8 @@ namespace Polodum
                     throw new Error($"File '{path}' does not exist", position);
             }
 
+            path = Path.GetFullPath(path);
+
             if (_compiledFiles.TryGetValue(path, out bool finished))
             {
                 if (!finished)
@@ -346,6 +348,16 @@ namespace Polodum
 
                         break;
                     }
+
+                case IndexSetStmt indexSetStmt:
+                    {
+                        IndexExpr indexExpr = indexSetStmt.IndexExpr;
+                        CompileExpr(indexSetStmt.Value);
+                        CompileExpr(indexExpr.Index);
+                        CompileExpr(indexExpr.Target);
+                        Chunk.AddInstruction(new Instruction(Opcode.IndexSet), indexExpr.Position);
+                        break;
+                    }
             }
         }
 
@@ -410,6 +422,21 @@ namespace Polodum
                         callExpr.Arguments.ForEach(CompileExpr);
                         CompileExpr(callExpr.Callee);
                         Chunk.AddInstruction(new Instruction(Opcode.Call, callExpr.Arguments.Count), callExpr.Position);
+                        break;
+                    }
+
+                case ArrayExpr arrayExpr:
+                    {
+                        arrayExpr.Exprs.ForEach(CompileExpr);
+                        Chunk.AddInstruction(new Instruction(Opcode.MakeArray, arrayExpr.Exprs.Count), arrayExpr.Position);
+                        break;
+                    }
+
+                case IndexExpr indexExpr:
+                    {
+                        CompileExpr(indexExpr.Index);
+                        CompileExpr(indexExpr.Target);
+                        Chunk.AddInstruction(new Instruction(Opcode.Index), indexExpr.Position);
                         break;
                     }
 

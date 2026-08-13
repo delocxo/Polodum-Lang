@@ -1,11 +1,4 @@
-x = 3;
-
-if x <= 2 do
-    out "ONE";
-elseif x <= 4 do
-    out "TWO";
-elseif x <= 6 do
-    out "THREE";
-else
-    out "FOUR";
-end
+x = [[1, 2], ["A", false]];
+out x + "\n";
+x[0] = "Hello, World!";
+out x + "\n";
