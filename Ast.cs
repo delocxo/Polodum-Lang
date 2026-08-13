@@ -84,4 +84,70 @@ namespace Polodum
 
         public CallExpr CallExpr { get; }
     }
+
+    internal class IfBranch
+    {
+        public IfBranch(Expr condition, List<Stmt> body)
+        {
+            Condition = condition;
+            Body = body;
+        }
+
+        public Expr Condition { get; }
+        public List<Stmt> Body { get; }
+    }
+
+    internal class IfStmt : Stmt
+    {
+        public IfStmt(List<IfBranch> branches, List<Stmt>? elseBody, Position position) : base(position, false, true)
+        {
+            Branches = branches;
+            ElseBody = elseBody;
+        }
+
+        public List<IfBranch> Branches { get; }
+        public List<Stmt>? ElseBody { get; }
+    }
+
+    internal class LeaveStmt : Stmt
+    {
+        public LeaveStmt(Expr? condition, Position position) : base(position, false, true)
+        {
+            Condition = condition;
+        }
+
+        public Expr? Condition { get; }
+    }
+
+    internal class BreakStmt : Stmt
+    {
+        public BreakStmt(Expr? condition, Position position) : base(position, false, true)
+        {
+            Condition = condition;
+        }
+
+        public Expr? Condition { get; }
+    }
+
+    internal class ContinueStmt : Stmt
+    {
+        public ContinueStmt(Expr? condition, Position position) : base(position, false, true)
+        {
+            Condition = condition;
+        }
+
+        public Expr? Condition { get; }
+    }
+
+    internal class ForStmt : Stmt
+    {
+        public ForStmt(Expr condition, List<Stmt> body, Position position) : base(position, false, true)
+        {
+            Condition = condition;
+            Body = body;
+        }
+
+        public Expr Condition { get; }
+        public List<Stmt> Body { get; }
+    }
 }

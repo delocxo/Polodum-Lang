@@ -255,6 +255,7 @@ namespace Polodum
 
                     case Opcode.JumpIfFalsePop:
                         {
+
                             Value condition = stack.Pop();
                             if (!Value.IsTruthy(condition))
                                 callFrame.Ip = instruction.A;

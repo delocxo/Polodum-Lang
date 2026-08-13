@@ -1,6 +1,11 @@
-proc greet(name)
-	out "Hello " + name + "!";
-	ret false;
-end
+x = 3;
 
-greet("Smolenks");
+if x <= 2 do
+    out "ONE";
+elseif x <= 4 do
+    out "TWO";
+elseif x <= 6 do
+    out "THREE";
+else
+    out "FOUR";
+end

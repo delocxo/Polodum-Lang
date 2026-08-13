@@ -7,15 +7,33 @@ namespace Polodum
 {
     using Scope = Dictionary<string, int>;
 
+    internal class IfContext
+    {
+        public List<int> Leaves { get; } = new List<int>(); 
+    }
+
+    internal class ForContext
+    {
+        public ForContext(int @continue)
+        {
+            Continue = @continue;
+        }
+
+        public int Continue { get; }
+        public List<int> Breaks { get; } = new List<int>();
+    }
+
     internal class Compiler
     {
         public Chunk Chunk { get; set; } = new Chunk();
         public Stack<Scope> Scopes { get; } = new Stack<Scope>();
         public Scope Globals { get; set; } = new Scope();
+        public Dictionary<string, FunctionInfo> Functions { get; set; } = new Dictionary<string, FunctionInfo>();
 
         bool _isGlobal;
         Dictionary<string, bool> _compiledFiles = new Dictionary<string, bool>();
-        Dictionary<string, FunctionInfo> _functions = new Dictionary<string, FunctionInfo>();
+        Stack<IfContext> _ifContexts = new Stack<IfContext>();
+        Stack<ForContext> _forContexts = new Stack<ForContext>();
 
         bool IsGlobal => _isGlobal || Scopes.Count == 0;
 
@@ -59,7 +77,7 @@ namespace Polodum
 
                 if (stmt is ProcStmt procStmt)
                 {
-                    if (_functions.ContainsKey(procStmt.Name))
+                    if (Functions.ContainsKey(procStmt.Name))
                         throw new Error($"Function '{procStmt.Name}' is already an existing function", procStmt.Position);
 
                     CheckForDuplicateNames(procStmt.Paremeters, " is a duplicate function parameter", procStmt.Position);
@@ -67,7 +85,7 @@ namespace Polodum
                     if (procStmt.Body.Count == 0 || procStmt.Body.Last() is not RetStmt retStmt || retStmt.Condition != null)
                         throw new Error($"Function '{procStmt.Name}' requires an explicit ret", procStmt.Position);
 
-                    _functions.Add(procStmt.Name, new FunctionInfo(procStmt.Name, procStmt.Paremeters));
+                    Functions.Add(procStmt.Name, new FunctionInfo(procStmt.Name, procStmt.Paremeters));
                 }
             }
             foreach (Stmt stmt in ast)
@@ -93,7 +111,8 @@ namespace Polodum
                     {
                         Compiler compiler = new Compiler(false)
                         {
-                            Globals = Globals
+                            Globals = Globals,
+                            Functions = Functions
                         };
 
                         foreach (string parameter in procStmt.Paremeters)
@@ -103,7 +122,7 @@ namespace Polodum
 
                         compiler.CompileStmts(procStmt.Body);
 
-                        FunctionInfo functionInfo = _functions[procStmt.Name];
+                        FunctionInfo functionInfo = Functions[procStmt.Name];
                         functionInfo.Chunk = compiler.Chunk;
 
                         break;
@@ -115,7 +134,7 @@ namespace Polodum
 
                         Scope scope = Scopes.Peek();
 
-                        if (scope.TryGetValue(varStmt.Name, out int local))
+                        if (TryResolveLocal(varStmt.Name, out int local))
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, local), varStmt.Position);
                             break;
@@ -178,6 +197,155 @@ namespace Polodum
                         Chunk.AddInstruction(new Instruction(Opcode.Pop), callStmt.Position);
                         break;
                     }
+
+                case IfStmt ifStmt:
+                    {
+                        List<int> endJumps = new List<int>();
+
+                        foreach (var branch in ifStmt.Branches)
+                        {
+                            CompileExpr(branch.Condition);
+
+                            int falseJump = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), ifStmt.Position);
+
+                            _ifContexts.Push(new IfContext());
+
+                            BeginScope();
+
+                            CompileStmts(branch.Body);
+
+                            EndScope();
+
+                            endJumps.AddRange(_ifContexts.Pop().Leaves);
+
+                            int endJump = Chunk.AddInstruction(new Instruction(Opcode.Jump), ifStmt.Position);
+
+                            endJumps.Add(endJump);
+
+                            Chunk.PatchJump(falseJump);
+                        }
+
+                        if (ifStmt.ElseBody != null)
+                        {
+                            _ifContexts.Push(new IfContext());
+
+                            BeginScope();
+
+                            CompileStmts(ifStmt.ElseBody);
+
+                            EndScope();
+
+                            endJumps.AddRange(_ifContexts.Pop().Leaves);
+                        }
+
+                        foreach (int jump in endJumps)
+                            Chunk.PatchJump(jump);
+
+                        break;
+                    }
+
+                case LeaveStmt leaveStmt:
+                    {
+                        if (_ifContexts.Count == 0)
+                            throw new Error("Cannot use leave outside a if-else-elseif statement", leaveStmt.Position);
+
+                        var context = _ifContexts.Peek();
+
+                        if (leaveStmt.Condition != null)
+                        {
+                            CompileExpr(leaveStmt.Condition);
+
+                            int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), leaveStmt.Position);
+
+                            context.Leaves.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), leaveStmt.Position));
+
+                            Chunk.PatchJump(jumpIfFalse);
+
+                            break;
+                        }
+
+                        context.Leaves.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), leaveStmt.Position));
+
+                        break;
+                    }
+
+                case ForStmt forStmt:
+                    {
+                        int loopStart = Chunk.Instructions.Count;
+
+                        CompileExpr(forStmt.Condition);
+
+                        int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), forStmt.Position);
+
+                        _forContexts.Push(new ForContext(loopStart));
+
+                        BeginScope();
+
+                        CompileStmts(forStmt.Body);
+
+                        EndScope();
+
+                        Chunk.AddInstruction(new Instruction(Opcode.Jump, loopStart), forStmt.Position);
+
+                        Chunk.PatchJump(jumpIfFalse);
+
+                        var context = _forContexts.Pop();
+
+                        foreach (int jump in context.Breaks)
+                            Chunk.PatchJump(jump);
+
+                        break;
+                    }
+
+                case BreakStmt breakStmt:
+                    {
+                        if (_forContexts.Count == 0)
+                            throw new Error("Cannot use break outside a for loop", breakStmt.Position);
+
+                        var context = _forContexts.Peek();
+
+                        if (breakStmt.Condition != null)
+                        {
+                            CompileExpr(breakStmt.Condition);
+
+                            int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), breakStmt.Position);
+
+                            context.Breaks.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), breakStmt.Position));
+
+                            Chunk.PatchJump(jumpIfFalse);
+
+                            break;
+                        }
+
+                        context.Breaks.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), breakStmt.Position));
+
+                        break;
+                    }
+
+                case ContinueStmt continueStmt:
+                    {
+                        if (_forContexts.Count == 0)
+                            throw new Error("Cannot use continue outside a for loop", continueStmt.Position);
+
+                        var context = _forContexts.Peek();
+
+                        if (continueStmt.Condition != null)
+                        {
+                            CompileExpr(continueStmt.Condition);
+
+                            int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), continueStmt.Position);
+
+                            Chunk.AddInstruction(new Instruction(Opcode.Jump, context.Continue), continueStmt.Position);
+
+                            Chunk.PatchJump(jumpIfFalse);
+
+                            break;
+                        }
+
+                        Chunk.AddInstruction(new Instruction(Opcode.Jump, context.Continue), continueStmt.Position);
+
+                        break;
+                    }
             }
         }
 
@@ -208,7 +376,7 @@ namespace Polodum
 
                 case NameExpr nameExpr:
                     {
-                        if (_functions.TryGetValue(nameExpr.Name, out FunctionInfo? functionInfo))
+                        if (Functions.TryGetValue(nameExpr.Name, out FunctionInfo? functionInfo))
                         {
                             int constant = Chunk.AddConstant(new Value(functionInfo));
                             Chunk.AddInstruction(new Instruction(Opcode.LoadConst, constant), nameExpr.Position);

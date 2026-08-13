@@ -10,6 +10,7 @@ namespace Polodum
 
         True, False, Mut, End, Do, Proc, For,
         If, Else, ElseIf, Out, Not, Is, Ret,
+        Leave, Break, Continue,
 
         Add, Sub, Mul, Div, Mod,
         IsEqual, NotEqual, Less, Greater,

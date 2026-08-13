@@ -58,6 +58,20 @@ namespace Polodum
         {
             Instruction instruction = Instructions[index];
             instruction.A = Instructions.Count;
+            Instructions[index] = instruction;
+        }
+
+        public void Print()
+        {
+            for (int i = 0; i < Constants.Count; i++)
+            {
+                Console.WriteLine($"Constant {i}. {Constants[i].Stringify()}");
+            }
+            for (int i = 0; i < Instructions.Count; i++)
+            {
+                Instruction instruction = Instructions[i];
+                Console.WriteLine($"Instruction {i}. {instruction.Opcode} {instruction.A} {instruction.B} {instruction.C} {instruction.D}");
+            }
         }
     }
 }

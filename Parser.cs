@@ -37,6 +37,16 @@ namespace Polodum
                 return ParseRet();
             else if (Check(TokenType.Proc))
                 return ParseProc();
+            else if (Check(TokenType.If))
+                return ParseIf();
+            else if (Check(TokenType.Leave))
+                return ParseLeave();
+            else if (Check(TokenType.Break))
+                return ParseBreak();
+            else if (Check(TokenType.Continue))
+                return ParseContinue();
+            else if (Check(TokenType.For))
+                return ParseFor();
             throw ThrowUnexpected();
         }
 
@@ -107,6 +117,119 @@ namespace Polodum
             List<Stmt> body = ParseBody(false);
 
             return new ProcStmt(name, paremeters, body, position);
+        }
+
+        IfStmt ParseIf()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            List<IfBranch> branches = new List<IfBranch>();
+
+            Expr condition = ParseExpr();
+
+            Expect(TokenType.Do);
+
+            List<Stmt> body = ParseIfBody();
+
+            branches.Add(new IfBranch(condition, body));
+
+            while (Match(TokenType.ElseIf))
+            {
+                Expr elseIfCondition = ParseExpr();
+
+                Expect(TokenType.Do);
+
+                List<Stmt> elseIfbody = ParseIfBody();
+
+                branches.Add(new IfBranch(elseIfCondition, elseIfbody));
+            }
+
+            List<Stmt>? elseBody = null;
+
+            if (Match(TokenType.Else))
+                elseBody = ParseIfBody();
+
+            Expect(TokenType.End);
+
+            return new IfStmt(branches, elseBody, position);
+        }
+
+        List<Stmt> ParseIfBody()
+        {
+            List<Stmt> stmts = new List<Stmt>();
+
+            while (NotAtEnd() && !Check(TokenType.ElseIf, TokenType.Else, TokenType.End))
+                stmts.Add(ParseStmt());
+
+            return stmts;
+        }
+
+        LeaveStmt ParseLeave()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            Expr? condition = null;
+
+            if (Match(TokenType.If))
+                condition = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new LeaveStmt(condition, position);
+        }
+
+        BreakStmt ParseBreak()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            Expr? condition = null;
+
+            if (Match(TokenType.If))
+                condition = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new BreakStmt(condition, position);
+        }
+
+        ContinueStmt ParseContinue()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            Expr? condition = null;
+
+            if (Match(TokenType.If))
+                condition = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new ContinueStmt(condition, position);
+        }
+
+        ForStmt ParseFor()
+        {
+            Position position = Current().Position;
+
+            Next();
+
+            if (Check(TokenType.Do))
+            {
+                Expr condition = new BoolExpr(false, position);
+                List<Stmt> body = ParseBody(true);
+                return new ForStmt(condition, body, position);
+            }
+
+            Expr otherCondition = ParseExpr();
+            List<Stmt> otherBody = ParseBody(true);
+            return new ForStmt(otherCondition, otherBody, position);
         }
 
         Error ThrowUnexpected()
