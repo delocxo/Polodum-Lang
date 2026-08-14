@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Polodum
 {
@@ -819,7 +820,71 @@ namespace Polodum
                     return new Value(array.GetRange(start, end - start));
                 });
 
-            throw new Error("Type 'array' cannot be member accessed", position);
+            throw new Error($"Type 'array' does not contain member '{member}'", position);
+        }
+
+        Value GetStringMembers(Value stringValue, string member, Position position)
+        {
+            string str = stringValue.String;
+
+            if (member == "length")
+                return new Value(str.Length);
+
+            else if (member == "contains")
+                return Value.FromNativeExpected(1, "contains", ["value"], stringValue, (args, _) =>
+                {
+                    return new Value(str.Contains(args[0].ToString()));
+                });
+
+            else if (member == "indexOf")
+                return Value.FromNativeExpected(1, "indexOf", ["value"], stringValue, (args, _) =>
+                {
+                    return new Value(str.IndexOf(args[0].ToString()));
+                });
+
+            else if (member == "startsWith")
+                return Value.FromNativeExpected(1, "startsWith", ["value"], stringValue, (args, _) =>
+                {
+                    return new Value(str.StartsWith(args[0].ToString()));
+                });
+
+            else if (member == "endsWith")
+                return Value.FromNativeExpected(1, "startsWith", ["value"], stringValue, (args, _) =>
+                {
+                    return new Value(str.EndsWith(args[0].ToString()));
+                });
+
+            else if (member == "trim")
+                return Value.FromNativeExpected(0, "trim", [], stringValue, (args, _) =>
+                {
+                    return new Value(str.Trim());
+                });
+
+            else if (member == "trimStart")
+                return Value.FromNativeExpected(0, "trimStart", [], stringValue, (args, _) =>
+                {
+                    return new Value(str.TrimStart());
+                });
+
+            else if (member == "trimEnd")
+                return Value.FromNativeExpected(0, "trimEnd", [], stringValue, (args, _) =>
+                {
+                    return new Value(str.TrimEnd());
+                });
+
+            else if (member == "toLower")
+                return Value.FromNativeExpected(0, "toLower", [], stringValue, (args, _) =>
+                {
+                    return new Value(str.ToLower());
+                });
+
+            else if (member == "toUpper")
+                return Value.FromNativeExpected(0, "toUpper", [], stringValue, (args, _) =>
+                {
+                    return new Value(str.ToUpper());
+                });
+
+            throw new Error($"Type 'string' does not contain member '{member}'", position);
         }
 
         Error ThrowBinaryError(Value left, Value right, string op, Instruction instruction)
