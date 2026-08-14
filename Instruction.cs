@@ -14,6 +14,8 @@ namespace Polodum
         MakeArray,
         MakeRecord,
 
+        GetName,
+
         Add,
         Sub,
         Mul,

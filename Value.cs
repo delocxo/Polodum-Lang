@@ -39,6 +39,30 @@ namespace Polodum
         public int Id { get; }
     }
 
+    internal delegate Value Native(PoloArray arguments, Position position);
+
+    internal class NativeFunction
+    {
+        public NativeFunction(int arity, int maxArity, ArgumentMode argumentMode, string name, string[] parameters, Value? bound, Native native)
+        {
+            Arity = arity;
+            MaxArity = maxArity;
+            ArgumentMode = argumentMode;
+            Name = name;
+            Parameters = parameters;
+            Bound = bound;
+            Native = native;
+        }
+
+        public int Arity { get; }
+        public int MaxArity { get; }
+        public ArgumentMode ArgumentMode { get; }
+        public string Name { get; }
+        public string[] Parameters { get; }
+        public Value? Bound { get; }
+        public Native Native { get; }
+    }
+
     internal struct Value
     {
         public Value(double number) : this()
@@ -79,6 +103,25 @@ namespace Polodum
             IsRecord = true;
         }
 
+        public Value(NativeFunction nativeFunction)
+        {
+            Object = nativeFunction;
+            Kind = ValueKind.NativeFunction;
+        }
+
+        public static Value FromNativeExpected(int arity, string name, string[] parameters, Value? bound, Native native)
+        {
+            return new Value(new NativeFunction(arity, 0, ArgumentMode.Expected, name, parameters, bound, native));
+        }
+
+        public static Value FromRecord(Dictionary<string, RecordField> fields, int id)
+        {
+            return new Value(new Record(fields, id));
+        }
+
+        public static Value False => new Value(false);
+        public static Value True => new Value(true);
+
         public override string ToString()
         {
             if (Kind == ValueKind.String)
@@ -112,6 +155,12 @@ namespace Polodum
                 return $"{KindName} {{ {fields} }}";
             }
 
+            else if (Kind == ValueKind.NativeFunction)
+            {
+                string paremeters = string.Join(", ", Native.Parameters);
+                return $"<native function {Native.Name}({paremeters})>";
+            }
+
             return "invalid type";
         }
 
@@ -143,7 +192,21 @@ namespace Polodum
                 return left.Array == right.Array;
 
             else if (left.IsRecord && right.IsRecord)
-                return left.Kind == right.Kind;
+                return left.Record == right.Record;
+
+            else if (left.IsKind(ValueKind.NativeFunction) && right.IsKind(ValueKind.NativeFunction))
+            {
+                NativeFunction nativeLeft = left.Native;
+                NativeFunction nativeRight = right.Native;
+
+                if (nativeLeft.Bound == null && nativeRight.Bound == null)
+                    return nativeLeft == nativeRight;
+
+                if (nativeLeft.Bound != null && nativeRight.Bound != null)
+                    return nativeLeft.Name == nativeRight.Name && CheckEquallity((Value)nativeLeft.Bound, (Value)nativeRight.Bound);
+
+                return false;
+            }
 
             return false;
         }
@@ -152,6 +215,8 @@ namespace Polodum
         {
             if (value.IsKind(ValueKind.Bool))
                 return value.Bool;
+            if (value.IsKind(ValueKind.None))
+                return false;
             return true;
         }
 
@@ -207,5 +272,6 @@ namespace Polodum
         public FunctionInfo FunctionInfo => (FunctionInfo)Object!;
         public PoloArray Array => (PoloArray)Object!;
         public Record Record => (Record)Object!;
+        public NativeFunction Native => (NativeFunction)Object!;
     }
 }

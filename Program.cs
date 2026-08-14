@@ -15,7 +15,6 @@
                 Compiler compiler = new Compiler(true);
                 compiler.CompileFile(args[0], new Position(0, 0, ""), true);
                 compiler.AddHalt();
-                compiler.Chunk.Print();
                 Vm vm = new Vm(compiler.Chunk);
                 vm.Execute();
             }

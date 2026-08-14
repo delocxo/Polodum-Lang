@@ -411,6 +411,11 @@ namespace Polodum
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.LoadGlobal, global), nameExpr.Position);
                         }
+                        else
+                        {
+                            Chunk.AddInstruction(new Instruction(Opcode.GetName, Chunk.AddConstant(new Value(nameExpr.Name))), nameExpr.Position);
+                        }
+
                         break;
                     }
 

@@ -146,6 +146,12 @@ namespace Polodum
                     tokens.RemoveAt(i);
                     tokens[i - 1] = newToken;
                 }
+
+                if (tokens[i].TokenType == TokenType.Not)
+                {
+                    Token newtoken = new Token(TokenType.Bang, "!", tokens[i].Position);
+                    tokens[i] = newtoken;
+                }
             }
 
             return tokens;

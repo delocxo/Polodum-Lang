@@ -226,7 +226,7 @@ namespace Polodum
 
             if (Check(TokenType.Do))
             {
-                Expr condition = new BoolExpr(false, position);
+                Expr condition = new BoolExpr(true, position);
                 List<Stmt> body = ParseBody(true);
                 return new ForStmt(condition, body, position);
             }

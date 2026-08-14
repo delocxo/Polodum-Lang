@@ -1,9 +1,798 @@
-x = Info {
-	Name = "Hello"
+// ============================================================
+//                     POLODUM DUNGEON
+// ============================================================
+
+
+// ------------------------------------------------------------
+// GAME STATE
+// ------------------------------------------------------------
+
+player = Player {
+    Name = "Unknown",
+    mut Health = 100,
+    MaxHealth = 100,
+    mut Attack = 15,
+    mut Defense = 3,
+    mut Gold = 0,
+    mut Potions = 3,
+    mut Room = 0,
+    mut Kills = 0
 };
 
-out x.Name;
+game = Game {
+    mut Running = true,
+    mut Victory = false
+};
 
-x.Name = 100;
 
-out x.Name;
+// Fixed inventory for now.
+// Later this could use array natives like push/remove.
+
+inventory = [
+    "Iron Sword",
+    "Empty",
+    "Empty",
+    "Empty",
+    "Empty"
+];
+
+
+// ------------------------------------------------------------
+// BASIC HELPERS
+// ------------------------------------------------------------
+
+proc damage(attack, defense)
+    amount = attack - defense;
+
+    ret 1 if amount < 1;
+
+    ret amount;
+end
+
+
+proc line()
+    out "----------------------------------------\n";
+    ret true;
+end
+
+
+proc title(text)
+    out "\n";
+    line();
+    out text + "\n";
+    line();
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// PLAYER DISPLAY
+// ------------------------------------------------------------
+
+proc showStats()
+    title("PLAYER");
+
+    out "Name: ";
+    out player.Name;
+    out "\n";
+
+    out "Health: ";
+    out player.Health;
+    out "/";
+    out player.MaxHealth;
+    out "\n";
+
+    out "Attack: ";
+    out player.Attack;
+    out "\n";
+
+    out "Defense: ";
+    out player.Defense;
+    out "\n";
+
+    out "Gold: ";
+    out player.Gold;
+    out "\n";
+
+    out "Potions: ";
+    out player.Potions;
+    out "\n";
+
+    out "Kills: ";
+    out player.Kills;
+    out "\n";
+
+    ret true;
+end
+
+
+proc showInventory()
+    title("INVENTORY");
+
+    out "1. ";
+    out inventory[0];
+    out "\n";
+
+    out "2. ";
+    out inventory[1];
+    out "\n";
+
+    out "3. ";
+    out inventory[2];
+    out "\n";
+
+    out "4. ";
+    out inventory[3];
+    out "\n";
+
+    out "5. ";
+    out inventory[4];
+    out "\n";
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// SOME / NONE EXAMPLE
+// ------------------------------------------------------------
+
+proc findEmptyInventorySlot()
+
+    ret some(1) if inventory[1] == "Empty";
+    ret some(2) if inventory[2] == "Empty";
+    ret some(3) if inventory[3] == "Empty";
+    ret some(4) if inventory[4] == "Empty";
+
+    ret none();
+end
+
+
+proc giveItem(item)
+    result = findEmptyInventorySlot();
+
+    if result is None do
+        out "Your inventory is full.\n";
+        ret false;
+    end
+
+    index = result.value;
+
+    inventory[index] = item;
+
+    out "You received: ";
+    out item;
+    out "\n";
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// PLAYER ACTIONS
+// ------------------------------------------------------------
+
+proc heal()
+    if player.Potions <= 0 do
+        out "You have no potions.\n";
+        ret false;
+    end
+
+    if player.Health >= player.MaxHealth do
+        out "You are already at full health.\n";
+        ret false;
+    end
+
+    player.Potions = player.Potions - 1;
+    player.Health = player.Health + 35;
+
+    if player.Health > player.MaxHealth do
+        player.Health = player.MaxHealth;
+    end
+
+    out "You drink a potion.\n";
+
+    out "Health: ";
+    out player.Health;
+    out "/";
+    out player.MaxHealth;
+    out "\n";
+
+    ret true;
+end
+
+
+proc upgradeAttack()
+    cost = 50;
+
+    if player.Gold < cost do
+        out "You need 50 gold.\n";
+        ret false;
+    end
+
+    player.Gold = player.Gold - cost;
+    player.Attack = player.Attack + 5;
+
+    out "Your attack increased by 5.\n";
+
+    ret true;
+end
+
+
+proc upgradeDefense()
+    cost = 40;
+
+    if player.Gold < cost do
+        out "You need 40 gold.\n";
+        ret false;
+    end
+
+    player.Gold = player.Gold - cost;
+    player.Defense = player.Defense + 2;
+
+    out "Your defense increased by 2.\n";
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// ENEMIES
+// ------------------------------------------------------------
+
+proc makeRat()
+    enemy = Enemy {
+        Name = "Giant Rat",
+        mut Health = 30,
+        Attack = 8,
+        Defense = 1,
+        Gold = 10
+    };
+
+    ret enemy;
+end
+
+
+proc makeGoblin()
+    enemy = Enemy {
+        Name = "Goblin",
+        mut Health = 55,
+        Attack = 13,
+        Defense = 2,
+        Gold = 20
+    };
+
+    ret enemy;
+end
+
+
+proc makeOrc()
+    enemy = Enemy {
+        Name = "Orc Warrior",
+        mut Health = 90,
+        Attack = 18,
+        Defense = 5,
+        Gold = 35
+    };
+
+    ret enemy;
+end
+
+
+proc makeKnight()
+    enemy = Enemy {
+        Name = "Corrupted Knight",
+        mut Health = 140,
+        Attack = 23,
+        Defense = 8,
+        Gold = 60
+    };
+
+    ret enemy;
+end
+
+
+proc makeBoss()
+    enemy = Enemy {
+        Name = "The Hollow King",
+        mut Health = 250,
+        Attack = 30,
+        Defense = 10,
+        Gold = 200
+    };
+
+    ret enemy;
+end
+
+
+// ------------------------------------------------------------
+// ENEMY SELECTION
+// ------------------------------------------------------------
+
+proc enemyForRoom(room)
+
+    ret makeRat() if room == 1;
+    ret makeGoblin() if room == 2;
+    ret makeGoblin() if room == 3;
+    ret makeOrc() if room == 4;
+    ret makeOrc() if room == 5;
+    ret makeKnight() if room == 6;
+    ret makeKnight() if room == 7;
+    ret makeBoss() if room == 8;
+
+    ret none();
+end
+
+
+// ------------------------------------------------------------
+// COMBAT DISPLAY
+// ------------------------------------------------------------
+
+proc showCombat(playerTurn, enemy)
+
+    out "\nTurn ";
+    out playerTurn;
+    out "\n";
+
+    out player.Name;
+    out ": ";
+    out player.Health;
+    out " HP\n";
+
+    out enemy.Name;
+    out ": ";
+    out enemy.Health;
+    out " HP\n";
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// COMBAT
+// ------------------------------------------------------------
+
+proc fight(enemy)
+
+    title("COMBAT");
+
+    out "A ";
+    out enemy.Name;
+    out " approaches!\n";
+
+    turn = 0;
+
+    for player.Health > 0 && enemy.Health > 0 do
+
+        turn = turn + 1;
+
+        showCombat(turn, enemy);
+
+        out "\n";
+        out "[attack] Attack\n";
+        out "[heal]   Drink potion\n";
+        out "[stats]  Show stats\n";
+        out "[run]    Attempt to leave\n";
+        out "\n> ";
+
+        command = input();
+
+        if command == "attack" do
+
+            hit = damage(player.Attack, enemy.Defense);
+
+            // Critical strike every fifth turn.
+
+            if turn % 5 == 0 do
+                hit = hit * 2;
+                out "CRITICAL STRIKE!\n";
+            end
+
+            enemy.Health = enemy.Health - hit;
+
+            out "You deal ";
+            out hit;
+            out " damage.\n";
+
+        elseif command == "heal" do
+
+            healed = heal();
+
+            // Failed heal doesn't consume the player's turn.
+
+            continue if not healed;
+
+        elseif command == "stats" do
+
+            showStats();
+
+            continue;
+
+        elseif command == "run" do
+
+            // Boss cannot be escaped.
+
+            if enemy.Name == "The Hollow King" do
+                out "There is no escape from the Hollow King.\n";
+                continue;
+            end
+
+            out "You escape the battle.\n";
+
+            ret false;
+
+        else
+
+            out "Unknown command.\n";
+
+            continue;
+
+        end
+
+
+        // Don't let a dead enemy attack.
+
+        break if enemy.Health <= 0;
+
+
+        enemyHit = damage(enemy.Attack, player.Defense);
+
+        // Enemy misses every sixth turn.
+
+        if turn % 6 == 0 do
+
+            out enemy.Name;
+            out " misses!\n";
+
+            continue;
+
+        end
+
+
+        player.Health = player.Health - enemyHit;
+
+        out enemy.Name;
+        out " deals ";
+        out enemyHit;
+        out " damage.\n";
+
+    end
+
+
+    if player.Health <= 0 do
+
+        out "\nYou have been defeated.\n";
+
+        ret false;
+
+    end
+
+
+    title("VICTORY");
+
+    out "You defeated ";
+    out enemy.Name;
+    out ".\n";
+
+    player.Gold = player.Gold + enemy.Gold;
+    player.Kills = player.Kills + 1;
+
+    out "Gold earned: ";
+    out enemy.Gold;
+    out "\n";
+
+
+    // Loot rewards.
+
+    if enemy.Name == "Goblin" do
+
+        giveItem("Goblin Dagger")
+            if player.Kills == 2;
+
+    elseif enemy.Name == "Orc Warrior" do
+
+        giveItem("Orc Axe")
+            if player.Kills == 4;
+
+    elseif enemy.Name == "Corrupted Knight" do
+
+        giveItem("Knight Shield")
+            if player.Kills == 6;
+
+    elseif enemy.Name == "The Hollow King" do
+
+        giveItem("Crown of the Hollow King");
+
+    end
+
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// SHOP
+// ------------------------------------------------------------
+
+proc shop()
+
+    for do
+
+        title("MERCHANT");
+
+        out "Gold: ";
+        out player.Gold;
+        out "\n\n";
+
+        out "[potion]  Potion - 15 gold\n";
+        out "[attack]  +5 Attack - 50 gold\n";
+        out "[defense] +2 Defense - 40 gold\n";
+        out "[leave]   Leave shop\n";
+        out "\n> ";
+
+        command = input();
+
+
+        if command == "potion" do
+
+            if player.Gold < 15 do
+                out "Not enough gold.\n";
+                continue;
+            end
+
+            player.Gold = player.Gold - 15;
+            player.Potions = player.Potions + 1;
+
+            out "Potion purchased.\n";
+
+        elseif command == "attack" do
+
+            upgradeAttack();
+
+        elseif command == "defense" do
+
+            upgradeDefense();
+
+        elseif command == "leave" do
+
+            break;
+
+        else
+
+            out "The merchant stares at you.\n";
+
+        end
+
+    end
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// ROOM EVENTS
+// ------------------------------------------------------------
+
+proc roomEvent(room)
+
+    // Small treasure room.
+
+    if room == 3 do
+
+        title("TREASURE");
+
+        out "You find an old chest.\n";
+
+        player.Gold = player.Gold + 25;
+
+        out "You found 25 gold.\n";
+
+        leave if inventory[1] isnt None;
+
+        giveItem("Old Key");
+
+    end
+
+
+    // Merchant.
+
+    if room == 5 do
+
+        out "\nA travelling merchant waits nearby.\n";
+        out "Visit merchant? [yes/no]\n> ";
+
+        answer = input();
+
+        shop() if answer == "yes";
+
+    end
+
+
+    // Free healing before boss.
+
+    if room == 7 do
+
+        title("FOUNTAIN");
+
+        out "A strange fountain restores your health.\n";
+
+        player.Health = player.MaxHealth;
+
+    end
+
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// ROOM
+// ------------------------------------------------------------
+
+proc enterRoom()
+
+    player.Room = player.Room + 1;
+
+    title("ROOM");
+
+    out "You enter room ";
+    out player.Room;
+    out ".\n";
+
+    roomEvent(player.Room);
+
+    result = enemyForRoom(player.Room);
+
+    if result is None do
+        ret true;
+    end
+
+    survived = fight(result);
+
+    ret survived;
+end
+
+
+// ------------------------------------------------------------
+// COMMAND HELP
+// ------------------------------------------------------------
+
+proc showHelp()
+
+    title("COMMANDS");
+
+    out "explore   Enter the next dungeon room\n";
+    out "stats     Show player statistics\n";
+    out "inventory Show your inventory\n";
+    out "heal      Drink a potion\n";
+    out "help      Show this menu\n";
+    out "quit      Leave the game\n";
+
+    ret true;
+end
+
+
+// ------------------------------------------------------------
+// INTRO
+// ------------------------------------------------------------
+
+title("POLODUM DUNGEON");
+
+out "What is your name?\n> ";
+
+name = input();
+
+player.Name = name;
+
+out "\nWelcome, ";
+out player.Name;
+out ".\n";
+
+out "Eight rooms stand between you and the Hollow King.\n";
+out "Survive them all.\n";
+
+showHelp();
+
+
+// ------------------------------------------------------------
+// MAIN GAME LOOP
+// ------------------------------------------------------------
+
+for game.Running do
+
+    out "\n> ";
+
+    command = input();
+
+
+    if command == "explore" do
+
+        if player.Room >= 8 do
+            out "The dungeon has already been cleared.\n";
+            continue;
+        end
+
+        survived = enterRoom();
+
+        if not survived do
+            game.Running = false;
+            continue;
+        end
+
+
+        if player.Room == 8 do
+
+            game.Victory = true;
+            game.Running = false;
+
+        end
+
+
+    elseif command == "stats" do
+
+        showStats();
+
+
+    elseif command == "inventory" do
+
+        showInventory();
+
+
+    elseif command == "heal" do
+
+        heal();
+
+
+    elseif command == "help" do
+
+        showHelp();
+
+
+    elseif command == "quit" do
+
+        out "Leaving dungeon...\n";
+
+        game.Running = false;
+
+
+    else
+
+        out "Unknown command. Type 'help'.\n";
+
+    end
+
+end
+
+
+// ------------------------------------------------------------
+// ENDING
+// ------------------------------------------------------------
+
+title("GAME OVER");
+
+
+if game.Victory do
+
+    out player.Name;
+    out " defeated the Hollow King!\n";
+
+    out "Final gold: ";
+    out player.Gold;
+    out "\n";
+
+    out "Enemies defeated: ";
+    out player.Kills;
+    out "\n";
+
+else
+
+    if player.Health <= 0 do
+        out player.Name;
+        out " fell inside the dungeon.\n";
+    else
+        out player.Name;
+        out " left the dungeon alive.\n";
+    end
+
+end

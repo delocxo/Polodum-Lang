@@ -26,8 +26,102 @@ namespace Polodum
     internal class Vm
     {
         Stack<CallFrame> _frames = new Stack<CallFrame>();
-        Value[] _globals;
-        Dictionary<string, Record> _existingRecords = new Dictionary<string, Record>();
+        Value[] _localGlobals;
+
+        static Value MakeNone() => Value.FromRecord([], ValueKind.None);
+        static Value MakeSome(Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
+        {
+            {
+                "value",
+                new("value", false, value)
+            }
+        }, ValueKind.Some);
+        static Value MakeField(string name, bool mutable, Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
+        {
+            {
+                "name",
+                new("name", false, new Value(name))
+            },
+            {
+                "mutable",
+                new("mutable", false, new Value(mutable))
+            },
+            {
+                "value",
+                new("value", false, value)
+            }
+        }, ValueKind.Field);
+
+        Dictionary<string, Record> _existingRecords = new Dictionary<string, Record>()
+        {
+            {
+                "Some",
+                MakeSome(MakeNone()).Record
+            },
+            {
+                "None",
+                MakeNone().Record
+            },
+            {
+                "field",
+                MakeField("", false, MakeNone()).Record
+            }
+        };
+
+        Dictionary<string, Value> _globals = new Dictionary<string, Value>()
+        {
+            {
+                "input",
+                Value.FromNativeExpected(0, "input", [], null, (_, _) =>
+                {
+                    return new Value(Console.ReadLine() ?? "");
+                })
+            },
+            {
+                "print",
+                Value.FromNativeExpected(1, "print", ["object"], null, (args, _) =>
+                {
+                    Console.Write(args[0]);
+                    return MakeNone();
+                })
+            },
+            {
+                "println",
+                Value.FromNativeExpected(1, "println", ["object"], null, (args, _) =>
+                {
+                    Console.WriteLine(args[0]);
+                    return MakeNone();
+                })
+            },
+            {
+                "typeof",
+                Value.FromNativeExpected(1, "typeof", ["object"], null, (args, _) =>
+                {
+                    return new Value(args[0].KindName);
+                })
+            },
+            {
+                "some",
+                Value.FromNativeExpected(1, "some", ["value"], null, (args, _) =>
+                {
+                    return Value.FromRecord(new Dictionary<string, RecordField>()
+                    {
+                        {
+                            "value",
+                            new("value", false, args[0])
+                        }
+                    }, ValueKind.Some);
+                })
+            },
+            {
+                "none",
+                Value.FromNativeExpected(0, "none", [], null, (_, _) =>
+                {
+                    return Value.FromRecord([], ValueKind.None);
+                })
+            }
+        };
+        
 
         public void MatchRecord(string name, Record record, Position position)
         {
@@ -54,7 +148,7 @@ namespace Polodum
 
         public Vm(Chunk chunk)
         {
-            _globals = new Value[chunk.GlobalCount];
+            _localGlobals = new Value[chunk.GlobalCount];
             _frames.Push(new CallFrame(chunk));
         }
 
@@ -77,11 +171,11 @@ namespace Polodum
                         break;
 
                     case Opcode.LoadGlobal:
-                        stack.Push(_globals[instruction.A]);
+                        stack.Push(_localGlobals[instruction.A]);
                         break;
 
                     case Opcode.StoreGlobal:
-                        _globals[instruction.A] = stack.Pop();
+                        _localGlobals[instruction.A] = stack.Pop();
                         break;
 
                     case Opcode.LoadConst:
@@ -128,6 +222,19 @@ namespace Polodum
 
                             stack.Push(new Value(record));
                             break;
+                        }
+
+                    case Opcode.GetName:
+                        {
+                            string name = callFrame.GetConstant(instruction.A).String;
+
+                            if (_globals.TryGetValue(name, out Value value))
+                            {
+                                stack.Push(value);
+                                break;
+                            }
+
+                            throw new Error($"'{name}' does not exist", callFrame.GetPosition(instruction));
                         }
 
                     case Opcode.Add:
@@ -370,7 +477,8 @@ namespace Polodum
                         {
                             int argCount = instruction.A;
                             Value target = stack.Pop();
-                            List<Value> arguments = new List<Value>(argCount);
+                            PoloArray arguments = new PoloArray(argCount);
+                            Position position = callFrame.GetPosition(instruction);
 
                             for (int i = 0; i < argCount; i++)
                                 arguments.Add(default);
@@ -382,7 +490,7 @@ namespace Polodum
                             {
                                 FunctionInfo functionInfo = target.FunctionInfo;
 
-                                ValidateArguments(functionInfo.Arity, argCount, ArgumentMode.Expected, functionInfo.Name, callFrame.GetPosition(instruction));
+                                ValidateArguments(functionInfo.Arity, argCount, ArgumentMode.Expected, functionInfo.Name, position);
 
                                 CallFrame newCallFrame = new CallFrame(functionInfo.Chunk);
 
@@ -390,6 +498,16 @@ namespace Polodum
                                     newCallFrame.Locals[i] = arguments[i];
 
                                 _frames.Push(newCallFrame);
+
+                                break;
+                            }
+                            else if (target.IsKind(ValueKind.NativeFunction))
+                            {
+                                NativeFunction nativeFunction = target.Native;
+
+                                ValidateArguments(nativeFunction.Arity, argCount, nativeFunction.ArgumentMode, nativeFunction.Name, position);
+
+                                stack.Push(nativeFunction.Native(arguments, position));
 
                                 break;
                             }
@@ -461,9 +579,65 @@ namespace Polodum
                             if (target.IsRecord)
                             {
                                 Record record = target.Record;
+
+                                if (memberName == "fieldCount")
+                                {
+                                    stack.Push(new Value(record.Fields.Count));
+                                    break;
+                                }
+                                else if (memberName == "getField")
+                                {
+                                    stack.Push(Value.FromNativeExpected(1, "getField", ["key"], target, (args, pos) =>
+                                    {
+                                        Value key = args[0];
+                                        key.ExpectKinds($"'{target.KindName}' getField expects only those types", pos, ValueKind.String, ValueKind.Number);
+
+                                        if (key.IsKind(ValueKind.String))
+                                        {
+                                            if (!record.Fields.TryGetValue(key.String, out RecordField? recordField))
+                                                throw new Error($"Record '{target.KindName}' does not contain field '{key.String}'", pos);
+
+                                            return MakeField(recordField.Name, recordField.Mutable, recordField.Value);
+                                        }
+
+                                        int intKey = key.ExpectIntInRangeEx(0, record.Fields.Count, $"'{target.KindName}' getField index out of range", pos);
+
+                                        RecordField otherField = record.Fields.ElementAt(intKey).Value;
+
+                                        return MakeField(otherField.Name, otherField.Mutable, otherField.Value);
+                                    }));
+
+                                    break;
+                                }
+                                else if (memberName == "getFields")
+                                {
+
+                                    stack.Push(Value.FromNativeExpected(0, "getFields", [], target, (args, pos) =>
+                                    {
+                                        PoloArray fieldArray = new PoloArray();
+
+                                        foreach (var fieldPair in record.Fields)
+                                        {
+                                            RecordField field = fieldPair.Value;
+                                            fieldArray.Add(MakeField(field.Name, field.Mutable, field.Value));
+                                        }
+
+                                        return new Value(fieldArray);
+                                    }));
+
+                                    break;
+                                }
+
                                 if (!record.Fields.TryGetValue(memberName, out RecordField? recordField))
                                     throw new Error($"Record '{target.KindName}' does not contain field '{memberName}'", position);
+
                                 stack.Push(recordField.Value);
+                                break;
+                            }
+
+                            else if (target.IsKind(ValueKind.Array))
+                            {
+                                stack.Push(GetArrayMembers(target, memberName, position));
                                 break;
                             }
 
@@ -491,7 +665,7 @@ namespace Polodum
                                 break;
                             }
 
-                            throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
+                            throw new Error($"Type '{target.KindName}' cannot be member set", position);
                         }
 
                     case Opcode.Out:
@@ -525,6 +699,129 @@ namespace Polodum
             }
         }
 
+        Value GetArrayMembers(Value arrayValue, string member, Position position)
+        {
+            PoloArray array = arrayValue.Array;
+
+            if (member == "length")
+                return new Value(array.Count);
+
+            else if (member == "empty")
+                return new Value(array.Count == 0);
+
+            else if (member == "push")
+                return Value.FromNativeExpected(1, "push", ["item"], arrayValue, (args, _) =>
+                {
+                    array.Add(args[0]);
+                    return MakeNone();
+                });
+
+            else if (member == "pushRange")
+                return Value.FromNativeExpected(1, "pushRange", ["otherArray"], arrayValue, (args, pos) =>
+                {
+                    PoloArray otherArray = args[0]
+                        .ExpectKinds("Expected other array", pos, ValueKind.Array)
+                        .Array;
+                    array.AddRange(otherArray);
+                    return MakeNone();
+                });
+
+            else if (member == "insert")
+                return Value.FromNativeExpected(2, "insert", ["index", "item"], arrayValue, (args, pos) =>
+                {
+                    int index = args[0]
+                        .ExpectIntInRangeIn(0, array.Count, "Insert index out of range", pos);
+                    array.Insert(index, args[1]);
+                    return MakeNone();
+                });
+
+            else if (member == "insertRange")
+                return Value.FromNativeExpected(2, "insertRange", ["index", "otherArray"], arrayValue, (args, pos) =>
+                {
+                    int index = args[0]
+                        .ExpectIntInRangeIn(0, array.Count, "Insert index out of range", pos);
+                    PoloArray otherArray = args[1]
+                        .ExpectKinds("Expected other array", pos, ValueKind.Array)
+                        .Array;
+                    array.InsertRange(index, otherArray);
+                    return MakeNone();
+                });
+
+            else if (member == "remove")
+                return Value.FromNativeExpected(1, "remove", ["value"], arrayValue, (args, pos) =>
+                {
+                    for (int i = 0; i < array.Count; i++)
+                        if (Value.CheckEquallity(args[0], array[i]))
+                        {
+                            array.RemoveAt(i);
+                            return Value.True;
+                        }
+                    return Value.False;
+                });
+
+            else if (member == "removeAt")
+                return Value.FromNativeExpected(1, "removeAt", ["index"], arrayValue, (args, pos) =>
+                {
+                    int index = args[0]
+                        .ExpectIntInRangeEx(0, array.Count, "Remove index out of range", pos);
+                    array.RemoveAt(index);
+                    return MakeNone();
+                });
+
+            else if (member == "contains")
+                return Value.FromNativeExpected(1, "contains", ["value"], arrayValue, (args, pos) =>
+                {
+                    for (int i = 0; i < array.Count; i++)
+                        if (Value.CheckEquallity(args[0], array[i]))
+                            return Value.True;
+                    return Value.False;
+                });
+
+            else if (member == "indexOf")
+                return Value.FromNativeExpected(1, "indexOf", ["value"], arrayValue, (args, pos) =>
+                {
+                    for (int i = 0; i < array.Count; i++)
+                        if (Value.CheckEquallity(args[0], array[i]))
+                            return new Value(i);
+                    return new Value(-1);
+                });
+
+            else if (member == "clear")
+                return Value.FromNativeExpected(0, "clear", [], arrayValue, (args, pos) =>
+                {
+                    array.Clear();
+                    return MakeNone();
+                });
+
+            else if (member == "reverse")
+                return Value.FromNativeExpected(0, "reverse", [], arrayValue, (args, pos) =>
+                {
+                    array.Reverse();
+                    return MakeNone();
+                });
+
+            else if (member == "copy")
+                return Value.FromNativeExpected(0, "copy", [], arrayValue, (args, pos) =>
+                {
+                    PoloArray newArray = [.. array];
+                    return new Value(newArray);
+                });
+
+            else if (member == "getRange")
+                return Value.FromNativeExpected(2, "getRange", ["start", "end"], arrayValue, (args, pos) =>
+                {
+                    int start = args[0]
+                        .ExpectIntInRangeIn(0, array.Count, "Start index out of range", pos);
+
+                    int end = args[1]
+                        .ExpectIntInRangeIn(start, array.Count, "End index out of range", pos);
+
+                    return new Value(array.GetRange(start, end - start));
+                });
+
+            throw new Error("Type 'array' cannot be member accessed", position);
+        }
+
         Error ThrowBinaryError(Value left, Value right, string op, Instruction instruction)
         {
             CallFrame current = _frames.Peek();
@@ -536,7 +833,7 @@ namespace Polodum
         {
             if (mode == ArgumentMode.Expected)
                 if (got != arity)
-                    throw new Error($"Function '{name}' expected {arity}, got {got}", position);
+                    throw new Error($"Function '{name}' expected {arity} argument(s), got {got}", position);
         }
     }
 }
