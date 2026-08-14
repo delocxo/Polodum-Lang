@@ -365,7 +365,7 @@ namespace Polodum
                         CompileExpr(memberSetStmt.Value);
                         CompileExpr(memberExpr.Target);
                         int memberConstant = Chunk.AddConstant(new Value(memberExpr.MemberName));
-                        Chunk.AddInstruction(new Instruction(Opcode.GetMember, memberConstant), memberExpr.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.MemberSet, memberConstant), memberExpr.Position);
                         break;
                     }
             }
