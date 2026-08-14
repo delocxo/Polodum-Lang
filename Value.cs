@@ -11,6 +11,8 @@ namespace Polodum
     internal enum ArgumentMode
     {
         Expected,
+        Unlimited,
+        Minimum,
     }
 
     internal class RecordField
@@ -112,6 +114,16 @@ namespace Polodum
         public static Value FromNativeExpected(int arity, string name, string[] parameters, Value? bound, Native native)
         {
             return new Value(new NativeFunction(arity, 0, ArgumentMode.Expected, name, parameters, bound, native));
+        }
+
+        public static Value FromNativeUnlimited(string name, string parameter, Value? bound, Native native)
+        {
+            return new Value(new NativeFunction(-1, 0, ArgumentMode.Unlimited, name, [parameter], bound, native));
+        }
+
+        public static Value FromNativeMinimum(int minArity, string name, string[] paremeters, string other, Value? bound, Native native)
+        {
+            return new Value(new NativeFunction(minArity, 0, ArgumentMode.Minimum, name, [..paremeters, other], bound, native));
         }
 
         public static Value FromRecord(Dictionary<string, RecordField> fields, int id)

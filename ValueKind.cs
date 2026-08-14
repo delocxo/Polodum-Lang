@@ -33,6 +33,8 @@ namespace Polodum
         public static int Some = Register("Some");
         public static int None = Register("None");
         public static int Field = Register("Field");
+        public static int Enum = Register("Enum");
+        public static int EnumValue = Register("EnumValue");
 
         public static int Register(string name)
         {

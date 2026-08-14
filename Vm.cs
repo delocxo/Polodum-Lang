@@ -30,6 +30,7 @@ namespace Polodum
         Value[] _localGlobals;
 
         static Value MakeNone() => Value.FromRecord([], ValueKind.None);
+
         static Value MakeSome(Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
         {
             {
@@ -37,6 +38,7 @@ namespace Polodum
                 new("value", false, value)
             }
         }, ValueKind.Some);
+
         static Value MakeField(string name, bool mutable, Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
         {
             {
@@ -53,6 +55,48 @@ namespace Polodum
             }
         }, ValueKind.Field);
 
+        static Value MakeEnumValue(string enumName, string name, int value) => Value.FromRecord(new Dictionary<string, RecordField>()
+        {
+            {
+                "enum",
+                new RecordField("enum", false, new Value(enumName))
+            },
+            {
+                "name",
+                new RecordField("name", false, new Value(name))
+            },
+            {
+                "value",
+                new RecordField("value", false, new Value(value))
+            }
+        }, ValueKind.EnumValue);
+
+        static Value MakeEnum(string name, List<string> values, Position position)
+        {
+            Dictionary<string, RecordField> fields = new Dictionary<string, RecordField>()
+            {
+                {
+                    "name",
+                    new RecordField("name", false, new Value(name))
+                }
+            };
+
+            for (int i = 0; i < values.Count; i++)
+            {
+                string valueName = values[i];
+
+                if (valueName == "name")
+                    throw new Error("Enum member 'name' is reserved", position);
+
+                if (fields.ContainsKey(valueName))
+                    throw new Error($"Enum already contains value '{valueName}'", position);
+
+                fields.Add(valueName, new RecordField(valueName, false, MakeEnumValue(name, valueName, i)));
+            }
+
+            return Value.FromRecord(fields, ValueKind.Enum);
+        }
+
         Dictionary<string, Record> _existingRecords = new Dictionary<string, Record>()
         {
             {
@@ -64,8 +108,16 @@ namespace Polodum
                 MakeNone().Record
             },
             {
-                "field",
+                "Field",
                 MakeField("", false, MakeNone()).Record
+            },
+            {
+                "Enum",
+                MakeEnum("", [], new Position(0, 0, "")).Record
+            },
+            {
+                "EnumValue",
+                MakeEnumValue("", "", 0).Record
             }
         };
 
@@ -119,6 +171,26 @@ namespace Polodum
                 Value.FromNativeExpected(0, "none", [], null, (_, _) =>
                 {
                     return Value.FromRecord([], ValueKind.None);
+                })
+            },
+            {
+                "enum",
+                Value.FromNativeMinimum(1, "enum", ["name"], "values", null, (args, pos) =>
+                {
+                    List<string> names = new List<string>();
+
+                    string name = args[0]
+                        .ExpectKinds("Expected string as enum name", pos, ValueKind.String)
+                        .String;
+
+                    for (int i = 1; i < args.Count; i++)
+                    {
+                        if (!args[i].IsKind(ValueKind.String))
+                            throw new Error("Expected string for enum values", pos);
+                        names.Add(args[i].String);
+                    }
+
+                    return MakeEnum(name, names, pos);
                 })
             }
         };
@@ -642,6 +714,12 @@ namespace Polodum
                                 break;
                             }
 
+                            else if (target.IsKind(ValueKind.String))
+                            {
+                                stack.Push(GetStringMembers(target, memberName, position));
+                                break;
+                            }
+
                             throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
                         }
 
@@ -830,6 +908,9 @@ namespace Polodum
             if (member == "length")
                 return new Value(str.Length);
 
+            else if (member == "isEmpty")
+                return new Value(str.Length == 0);
+
             else if (member == "contains")
                 return Value.FromNativeExpected(1, "contains", ["value"], stringValue, (args, _) =>
                 {
@@ -849,7 +930,7 @@ namespace Polodum
                 });
 
             else if (member == "endsWith")
-                return Value.FromNativeExpected(1, "startsWith", ["value"], stringValue, (args, _) =>
+                return Value.FromNativeExpected(1, "endsWith", ["value"], stringValue, (args, _) =>
                 {
                     return new Value(str.EndsWith(args[0].ToString()));
                 });
@@ -884,6 +965,69 @@ namespace Polodum
                     return new Value(str.ToUpper());
                 });
 
+            else if (member == "sub")
+                return Value.FromNativeExpected(2, "sub", ["start", "end"], stringValue, (args, pos) =>
+                {
+                    int start = args[0]
+                        .ExpectIntInRangeIn(0, str.Length, "Start index out of range", pos);
+
+                    int end = args[1]
+                        .ExpectIntInRangeIn(start, str.Length, "End index out of range", pos);
+
+                    return new Value(str.Substring(start, end - start));
+                });
+
+            else if (member == "replace")
+                return Value.FromNativeExpected(2, "replace", ["old", "new"], stringValue, (args, pos) =>
+                {
+                    return new Value(str.Replace(args[0].ToString(), args[1].ToString()));
+                });
+
+            else if (member == "repeat")
+                return Value.FromNativeExpected(1, "repeat", ["amount"], stringValue, (args, pos) =>
+                {
+                    int amount = args[0]
+                        .ExpectIntInRangeIn(0, int.MaxValue, "Repeat amount out of range", pos);
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < amount; i++)
+                        sb.Append(str);
+                    return new Value(sb.ToString());
+                });
+
+            else if (member == "split")
+                return Value.FromNativeExpected(1, "split", ["separator"], stringValue, (args, pos) =>
+                {
+                    string[] split = str.Split(args[0].ToString());
+                    PoloArray splitArray = new PoloArray(split.Length);
+                    for (int i = 0; i < split.Length; i++)
+                        splitArray.Add(new Value(split[i]));
+                    return new Value(splitArray);
+                });
+
+            else if (member == "isAlpha")
+                return Value.FromNativeExpected(0, "isAlpha", [], stringValue, (args, pos) =>
+                {
+                    return new Value(str.Length > 0 && str.All(char.IsLetter));
+                });
+
+            else if (member == "isDigit")
+                return Value.FromNativeExpected(0, "isDigit", [], stringValue, (args, pos) =>
+                {
+                    return new Value(str.Length > 0 && str.All(char.IsDigit));
+                });
+
+            else if (member == "isWhite")
+                return Value.FromNativeExpected(0, "isWhite", [], stringValue, (args, pos) =>
+                {
+                    return new Value(str.Length > 0 && str.All(char.IsWhiteSpace));
+                });
+
+            else if (member == "isAlphaDigit")
+                return Value.FromNativeExpected(0, "isAlphaDigit", [], stringValue, (args, pos) =>
+                {
+                    return new Value(str.Length > 0 && str.All(char.IsLetterOrDigit));
+                });
+
             throw new Error($"Type 'string' does not contain member '{member}'", position);
         }
 
@@ -897,8 +1041,17 @@ namespace Polodum
         void ValidateArguments(int arity, int got, ArgumentMode mode, string name, Position position)
         {
             if (mode == ArgumentMode.Expected)
+            {
                 if (got != arity)
                     throw new Error($"Function '{name}' expected {arity} argument(s), got {got}", position);
+            }
+            else if (mode == ArgumentMode.Unlimited)
+                return;
+            else if (mode == ArgumentMode.Minimum)
+            {
+                if (got < arity)
+                    throw new Error($"Function '{name}' expects atleast {arity} argument(s), got {got}", position);
+            }
         }
     }
 }
