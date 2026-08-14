@@ -1,4 +1,9 @@
-x = [[1, 2], ["A", false]];
-out x + "\n";
-x[0] = "Hello, World!";
-out x + "\n";
+x = Info {
+	Name = "Hello"
+};
+
+out x.Name;
+
+x.Name = 100;
+
+out x.Name;

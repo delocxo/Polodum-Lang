@@ -4,6 +4,22 @@ using System.Text;
 
 namespace Polodum
 {
+    internal struct ParsedField
+    {
+        public ParsedField(string name, Expr expr, bool mutable, Position position)
+        {
+            Name = name;
+            Expr = expr;
+            Mutable = mutable;
+            Position = position;
+        }
+
+        public string Name { get; }
+        public Expr Expr { get; }
+        public bool Mutable { get; }
+        public Position Position { get; }
+    }
+
     internal abstract record Expr(Position Position);
     internal record NumberExpr(double Value, Position Position) : Expr(Position);
     internal record StringExpr(string Value, Position Position) : Expr(Position);
@@ -13,6 +29,8 @@ namespace Polodum
     internal record CallExpr(Expr Callee, List<Expr> Arguments, Position Position) : Expr(Position);
     internal record ArrayExpr(List<Expr> Exprs, Position Position) : Expr(Position);
     internal record IndexExpr(Expr Target, Expr Index, Position Position) : Expr(Position);
+    internal record RecordExpr(string Name, List<ParsedField> Fields, Position Position) : Expr(Position);
+    internal record MemberExpr(Expr Target, string MemberName, Position Position) : Expr(Position);
     internal record BinaryExpr(Expr Left, Expr Right, TokenType Op, Position Position) : Expr(Position);
 
     internal abstract class Stmt
@@ -162,6 +180,18 @@ namespace Polodum
         }
 
         public IndexExpr IndexExpr { get; }
+        public Expr Value { get; }
+    }
+
+    internal class MemberSetStmt : Stmt
+    {
+        public MemberSetStmt(MemberExpr memberExpr, Expr value, Position position) : base(position, false, true)
+        {
+            MemberExpr = memberExpr;
+            Value = value;
+        }
+
+        public MemberExpr MemberExpr { get; }
         public Expr Value { get; }
     }
 }

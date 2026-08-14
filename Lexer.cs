@@ -23,12 +23,13 @@ namespace Polodum
             { "else", TokenType.Else },
             { "elseif", TokenType.ElseIf },
             { "out", TokenType.Out },
-            { "not", TokenType.Not },
+            { "isnt", TokenType.Isnt },
             { "is", TokenType.Is },
             { "ret", TokenType.Ret },
             { "leave", TokenType.Leave },
             { "break", TokenType.Break },
-            { "continue", TokenType.Continue }
+            { "continue", TokenType.Continue },
+            { "not", TokenType.Not }
         };
 
         static Dictionary<string, TokenType> s_symbols = new Dictionary<string, TokenType>()
@@ -55,7 +56,8 @@ namespace Polodum
             { "!", TokenType.Bang },
             { "(", TokenType.LeftParen },
             { ")", TokenType.RightParen },
-            { ",", TokenType.Comma }
+            { ",", TokenType.Comma },
+            { ".", TokenType.Period }
         };
 
         public static string? GetKeywordFromType(TokenType type)
@@ -135,6 +137,17 @@ namespace Polodum
             }
 
             tokens.Add(new Token(TokenType.Eof, "End of File", _currentPos));
+
+            for (int i = tokens.Count - 1; i >= 1; i--)
+            {
+                if (tokens[i - 1].TokenType == TokenType.Is && tokens[i].TokenType == TokenType.Not)
+                {
+                    Token newToken = new Token(TokenType.Isnt, "isnt", tokens[i - 1].Position);
+                    tokens.RemoveAt(i);
+                    tokens[i - 1] = newToken;
+                }
+            }
+
             return tokens;
         }
 

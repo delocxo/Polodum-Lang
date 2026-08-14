@@ -358,6 +358,16 @@ namespace Polodum
                         Chunk.AddInstruction(new Instruction(Opcode.IndexSet), indexExpr.Position);
                         break;
                     }
+
+                case MemberSetStmt memberSetStmt:
+                    {
+                        MemberExpr memberExpr = memberSetStmt.MemberExpr;
+                        CompileExpr(memberSetStmt.Value);
+                        CompileExpr(memberExpr.Target);
+                        int memberConstant = Chunk.AddConstant(new Value(memberExpr.MemberName));
+                        Chunk.AddInstruction(new Instruction(Opcode.GetMember, memberConstant), memberExpr.Position);
+                        break;
+                    }
             }
         }
 
@@ -440,6 +450,28 @@ namespace Polodum
                         break;
                     }
 
+                case RecordExpr recordExpr:
+                    {
+                        CheckForDuplicateNames(recordExpr.Fields.Select(x => x.Name).ToList(), $"is a duplicate field inside record '{recordExpr.Name}'", recordExpr.Position);
+                        foreach (var field in recordExpr.Fields)
+                        {
+                            CompileExpr(field.Expr);
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(new Value(field.Mutable))), recordExpr.Position);
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(new Value(field.Name))), recordExpr.Position);
+                        }
+                        int nameConstant = Chunk.AddConstant(new Value(recordExpr.Name));
+                        Chunk.AddInstruction(new Instruction(Opcode.MakeRecord, nameConstant, recordExpr.Fields.Count), recordExpr.Position);
+                        break;
+                    }
+
+                case MemberExpr memberExpr:
+                    {
+                        CompileExpr(memberExpr.Target);
+                        int memberConstant = Chunk.AddConstant(new Value(memberExpr.MemberName));
+                        Chunk.AddInstruction(new Instruction(Opcode.GetMember, memberConstant), memberExpr.Position);
+                        break;
+                    }
+
                 case BinaryExpr binaryExpr:
                     {
                         if (binaryExpr.Op == TokenType.And)
@@ -466,6 +498,19 @@ namespace Polodum
                             CompileExpr(binaryExpr.Right);
 
                             Chunk.PatchJump(endJump);
+                            break;
+                        }
+                        else if (binaryExpr.Op is TokenType.Is or TokenType.Isnt)
+                        {
+                            if (binaryExpr.Right is not NameExpr nameExpr)
+                                throw new Error($"Expected type name afer '{(binaryExpr.Op == TokenType.Is ? "is" : "isnt")}'", binaryExpr.Position);
+
+                            int constant = Chunk.AddConstant(new Value(nameExpr.Name));
+
+                            CompileExpr(binaryExpr.Left);
+
+                            Chunk.AddInstruction(new Instruction(binaryExpr.Op == TokenType.Is ? Opcode.Is : Opcode.Isnt, constant), binaryExpr.Position);
+
                             break;
                         }
 

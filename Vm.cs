@@ -27,6 +27,30 @@ namespace Polodum
     {
         Stack<CallFrame> _frames = new Stack<CallFrame>();
         Value[] _globals;
+        Dictionary<string, Record> _existingRecords = new Dictionary<string, Record>();
+
+        public void MatchRecord(string name, Record record, Position position)
+        {
+            if (_existingRecords.TryGetValue(name, out Record? other))
+            {
+                if (record.Fields.Count != other.Fields.Count)
+                    throw new Error($"Record '{name}' does not match the record definition", position);
+
+                foreach (var field in record.Fields)
+                {
+                    RecordField myField = field.Value;
+
+                    if (!other.Fields.TryGetValue(field.Key, out RecordField? otherField))
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+
+                    if (myField.Name != otherField.Name)
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+
+                    if (myField.Mutable != otherField.Mutable)
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+                }
+            }
+        }
 
         public Vm(Chunk chunk)
         {
@@ -77,6 +101,32 @@ namespace Polodum
                                 array[i] = stack.Pop();
 
                             stack.Push(new Value(array));
+                            break;
+                        }
+
+                    case Opcode.MakeRecord:
+                        {
+                            string name = callFrame.GetConstant(instruction.A).String;
+                            int fieldCount = instruction.B;
+
+                            Dictionary<string, RecordField> recordFields = new Dictionary<string, RecordField>();
+
+                            for (int i = fieldCount - 1; i >= 0; i--)
+                            {
+                                string fieldName = stack.Pop().String;
+                                bool mutable = stack.Pop().Bool;
+                                Value value = stack.Pop();
+
+                                recordFields.Add(fieldName, new RecordField(fieldName, mutable, value));
+                            }
+
+                            int id = ValueKind.Register(name);
+
+                            Record record = new Record(recordFields, id);
+
+                            MatchRecord(name, record, callFrame.GetPosition(instruction));
+
+                            stack.Push(new Value(record));
                             break;
                         }
 
@@ -253,6 +303,30 @@ namespace Polodum
                             throw new Error($"Cannot apply negate to {right.KindName}", callFrame.GetPosition(instruction));
                         }
 
+                    case Opcode.Is:
+                        {
+                            Value left = stack.Pop();
+                            Value type = callFrame.GetConstant(instruction.A);
+
+                            if (!ValueKind.NameToId.TryGetValue(type.String, out int typeId))
+                                throw new Error($"'{type.String}' is not a valid type", callFrame.GetPosition(instruction));
+
+                            stack.Push(new Value(left.Kind == typeId));
+                            break;
+                        }
+
+                    case Opcode.Isnt:
+                        {
+                            Value left = stack.Pop();
+                            Value type = callFrame.GetConstant(instruction.A);
+
+                            if (!ValueKind.NameToId.TryGetValue(type.String, out int typeId))
+                                throw new Error($"'{type.String}' is not a valid type", callFrame.GetPosition(instruction));
+
+                            stack.Push(new Value(left.Kind != typeId));
+                            break;
+                        }
+
                     case Opcode.JumpIfFalse:
                         {
                             Value condition = stack.Peek();
@@ -376,6 +450,48 @@ namespace Polodum
                             array[raw] = value;
 
                             break;
+                        }
+
+                    case Opcode.GetMember:
+                        {
+                            Value target = stack.Pop();
+                            string memberName = callFrame.GetConstant(instruction.A).String;
+                            Position position = callFrame.GetPosition(instruction);
+
+                            if (target.IsRecord)
+                            {
+                                Record record = target.Record;
+                                if (!record.Fields.TryGetValue(memberName, out RecordField? recordField))
+                                    throw new Error($"Record '{target.KindName}' does not contain field '{memberName}'", position);
+                                stack.Push(recordField.Value);
+                                break;
+                            }
+
+                            throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
+                        }
+
+                    case Opcode.MemberSet:
+                        {
+                            Value target = stack.Pop();
+                            Value value = stack.Pop();
+                            string memberName = callFrame.GetConstant(instruction.A).String;
+                            Position position = callFrame.GetPosition(instruction);
+
+                            if (target.IsRecord)
+                            {
+                                Record record = target.Record;
+
+                                if (!record.Fields.TryGetValue(memberName, out RecordField? recordField))
+                                    throw new Error($"Record '{target.KindName}' does not contain field '{memberName}'", position);
+                                
+                                if (!recordField.Mutable)
+                                    throw new Error($"Field '{recordField.Name}' of '{target.KindName}' is not mutable", position);
+
+                                recordField.Value = value;
+                                break;
+                            }
+
+                            throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
                         }
 
                     case Opcode.Out:

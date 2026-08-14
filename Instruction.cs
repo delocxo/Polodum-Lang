@@ -12,6 +12,7 @@ namespace Polodum
         StoreGlobal,
         LoadConst,
         MakeArray,
+        MakeRecord,
 
         Add,
         Sub,
@@ -26,6 +27,8 @@ namespace Polodum
         NotEqual,
         Not,
         Neg,
+        Is,
+        Isnt,
 
         JumpIfFalse,
         JumpIfTrue,
@@ -36,6 +39,8 @@ namespace Polodum
         Call,
         Index,
         IndexSet,
+        GetMember,
+        MemberSet,
 
         Out,
         Pop,

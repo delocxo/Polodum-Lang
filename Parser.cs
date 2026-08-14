@@ -72,6 +72,8 @@ namespace Polodum
                 return new VarStmt(nameExpr.Name, expr, position);
             else if (assignee is IndexExpr indexExpr)
                 return new IndexSetStmt(indexExpr, expr, position);
+            else if (assignee is MemberExpr memberExpr)
+                return new MemberSetStmt(memberExpr, expr, position);
 
             throw new Error("Invalid assign target", position);
         }
@@ -365,6 +367,42 @@ namespace Polodum
                 throw new Error($"Expected token '{type}'", Current().Position);
         }
 
+        RecordExpr ParseRecord(string name, Position position)
+        {
+            ParsedField ParseField()
+            {
+                Position fieldPos = Current().Position;
+
+                bool mutable = false;
+
+                if (Match(TokenType.Mut))
+                    mutable = true;
+
+                string fieldName = ParseName();
+
+                Expect(TokenType.Equal);
+
+                Expr fieldExpr = ParseExpr();
+
+                return new ParsedField(fieldName, fieldExpr, mutable, position);
+            }
+
+            if (Match(TokenType.RightBrace))
+                return new RecordExpr(name, [], position);
+
+            List<ParsedField> parsedFields = new List<ParsedField>()
+            {
+                ParseField()
+            };
+
+            while (Match(TokenType.Comma))
+                parsedFields.Add(ParseField());
+
+            Expect(TokenType.RightBrace);
+
+            return new RecordExpr(name, parsedFields, position);
+        }
+
         Expr ParsePrimary()
         {
             Token token = Current();
@@ -378,7 +416,11 @@ namespace Polodum
             else if (Match(TokenType.False))
                 return new BoolExpr(false, token.Position);
             else if (Match(TokenType.Identifier))
+            {
+                if (Match(TokenType.LeftBrace))
+                    return ParseRecord(token.Lexeme, token.Position);
                 return new NameExpr(token.Lexeme, token.Position);
+            }
             else if (Match(TokenType.LeftParen))
             {
                 Expr expr = ParseExpr();
@@ -397,7 +439,7 @@ namespace Polodum
         Expr ParsePostfix()
         {
             Expr left = ParsePrimary();
-            while (Check(TokenType.LeftParen, TokenType.LeftBracket))
+            while (Check(TokenType.LeftParen, TokenType.LeftBracket, TokenType.Period))
             {
                 if (Check(TokenType.LeftParen))
                 {
@@ -421,6 +463,19 @@ namespace Polodum
                     Expect(TokenType.RightBracket);
 
                     left = new IndexExpr(left, index, position);
+
+                    continue;
+                }
+
+                if (Check(TokenType.Period))
+                {
+                    Position position = Current().Position;
+
+                    Next();
+
+                    string name = ParseName();
+
+                    left = new MemberExpr(left, name, position);
 
                     continue;
                 }
@@ -503,7 +558,7 @@ namespace Polodum
         {
             Expr left = ParseComparison();
 
-            while (Check(TokenType.NotEqual, TokenType.IsEqual))
+            while (Check(TokenType.NotEqual, TokenType.IsEqual, TokenType.Is, TokenType.Isnt))
             {
                 Token op = Current();
 

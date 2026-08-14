@@ -19,7 +19,7 @@ namespace Polodum
     internal static class ValueKind
     {
         static List<KindInfo> s_types = new List<KindInfo>();
-        static Dictionary<string, int> s_nameToId = new Dictionary<string, int>();
+        public static Dictionary<string, int> NameToId = new Dictionary<string, int>();
 
         public static int Number = Register("number");
         public static int String = Register("string");
@@ -29,19 +29,19 @@ namespace Polodum
 
         public static int Register(string name)
         {
-            if (s_nameToId.TryGetValue(name, out int existing))
+            if (NameToId.TryGetValue(name, out int existing))
                 return existing;
 
             int id = s_types.Count;
 
             s_types.Add(new KindInfo(id, name));
-            s_nameToId[name] = id;
+            NameToId[name] = id;
 
             return id;
         }
 
         public static KindInfo Get(int id) => s_types[id];
-        public static int GetId(string name) => s_nameToId[name];
+        public static int GetId(string name) => NameToId[name];
         public static string GetName(int id) => Get(id).Name;
     }
 }

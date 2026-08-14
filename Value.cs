@@ -1,15 +1,42 @@
 ﻿global using PoloArray = System.Collections.Generic.List<Polodum.Value>;
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
 namespace Polodum
 {
-    enum ArgumentMode
+    internal enum ArgumentMode
     {
         Expected,
+    }
+
+    internal class RecordField
+    {
+        public RecordField(string name, bool mutable, Value value)
+        {
+            Name = name;
+            Mutable = mutable;
+            Value = value;
+        }
+
+        public string Name { get; set; }
+        public bool Mutable { get; set; }
+        public Value Value { get; set; }
+    }
+
+    internal class Record
+    {
+        public Record(Dictionary<string, RecordField> fields, int id)
+        {
+            Fields = fields.ToFrozenDictionary();
+            Id = id;
+        }
+
+        public FrozenDictionary<string, RecordField> Fields { get; }
+        public int Id { get; }
     }
 
     internal struct Value
@@ -45,6 +72,13 @@ namespace Polodum
             Kind = ValueKind.Array;
         }
 
+        public Value(Record record) : this()
+        {
+            Object = record;
+            Kind = record.Id;
+            IsRecord = true;
+        }
+
         public override string ToString()
         {
             if (Kind == ValueKind.String)
@@ -66,6 +100,16 @@ namespace Polodum
             {
                 string elements = string.Join(", ", Array.Select(x => x.Stringify()));
                 return $"[{elements}]";
+            }
+
+            else if (IsRecord)
+            {
+                string fields = string.Join(", ", Record.Fields.Select(x =>
+                {
+                    RecordField field = x.Value;
+                    return $"{(field.Mutable ? "mut " : "")}{field.Name} = {field.Value.Stringify()}";
+                }));
+                return $"{KindName} {{ {fields} }}";
             }
 
             return "invalid type";
@@ -97,6 +141,9 @@ namespace Polodum
 
             else if (left.IsKind(ValueKind.Array) && right.IsKind(ValueKind.Array))
                 return left.Array == right.Array;
+
+            else if (left.IsRecord && right.IsRecord)
+                return left.Kind == right.Kind;
 
             return false;
         }
@@ -159,5 +206,6 @@ namespace Polodum
         public object? Object { get; }
         public FunctionInfo FunctionInfo => (FunctionInfo)Object!;
         public PoloArray Array => (PoloArray)Object!;
+        public Record Record => (Record)Object!;
     }
 }
