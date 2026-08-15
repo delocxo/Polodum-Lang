@@ -29,7 +29,8 @@ namespace Polodum
             { "leave", TokenType.Leave },
             { "break", TokenType.Break },
             { "continue", TokenType.Continue },
-            { "not", TokenType.Not }
+            { "not", TokenType.Not },
+            { "in", TokenType.In }
         };
 
         static Dictionary<string, TokenType> s_symbols = new Dictionary<string, TokenType>()

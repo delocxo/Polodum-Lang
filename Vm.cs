@@ -310,6 +310,32 @@ namespace Polodum
                             throw new Error($"'{name}' does not exist", callFrame.GetPosition(instruction));
                         }
 
+                    // Guaranteed
+                    case Opcode.GetLength:
+                        {
+                            Value value = stack.Pop();
+
+                            if (value.IsKind(ValueKind.Array))
+                            {
+                                stack.Push(new Value(value.Array.Count));
+                                break;
+                            }
+
+                            stack.Push(new Value(value.String.Length));
+                            break;
+                        }
+
+                    case Opcode.CanIterateStoreLocal:
+                        {
+                            Value value = stack.Pop();
+                            int local = instruction.A;
+
+                            value.ExpectKinds($"Type '{value.Kind}' cannot be iterated over", callFrame.GetPosition(instruction), ValueKind.String, ValueKind.Array);
+
+                            callFrame.Locals[local] = value;
+                            break;
+                        }
+
                     case Opcode.Add:
                         {
                             Value right = stack.Pop();

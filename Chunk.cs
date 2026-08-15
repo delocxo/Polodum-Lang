@@ -55,23 +55,41 @@ namespace Polodum
             return index;
         }
 
-        public void PatchJump(int index)
+        public void PatchJump(int index, int target)
         {
             Instruction instruction = Instructions[index];
-            instruction.A = Instructions.Count;
+            instruction.A = target;
             Instructions[index] = instruction;
         }
+
+        public void PatchJump(int index)
+        {
+            PatchJump(index, Instructions.Count);
+        }
+
+        public int MakeSyntheticLocal() => LocalCount++;
 
         public void Print()
         {
             for (int i = 0; i < Constants.Count; i++)
             {
-                Console.WriteLine($"Constant {i}. {Constants[i].Stringify()}");
+                Value constant = Constants[i];
+                if (constant.Kind == ValueKind.Function)
+                {
+                    Console.WriteLine("FUNCTION START");
+                    Console.WriteLine($"{constant.ToString()}");
+                    constant.FunctionInfo.Chunk.Print();
+                    Console.WriteLine("FUNCTION END");
+                }
             }
             for (int i = 0; i < Instructions.Count; i++)
             {
                 Instruction instruction = Instructions[i];
                 Console.WriteLine($"Instruction {i}. {instruction.Opcode} {instruction.A} {instruction.B} {instruction.C} {instruction.D}");
+            }
+            for (int i = 0; i < Constants.Count; i++)
+            {
+                Console.WriteLine($"Constant {i}. {Constants[i].Stringify()}");
             }
         }
     }

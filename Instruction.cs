@@ -15,6 +15,8 @@ namespace Polodum
         MakeRecord,
 
         GetName,
+        GetLength,
+        CanIterateStoreLocal,
 
         Add,
         Sub,

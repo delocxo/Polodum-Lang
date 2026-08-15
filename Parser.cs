@@ -218,7 +218,7 @@ namespace Polodum
             return new ContinueStmt(condition, position);
         }
 
-        ForStmt ParseFor()
+        Stmt ParseFor()
         {
             Position position = Current().Position;
 
@@ -232,6 +232,17 @@ namespace Polodum
             }
 
             Expr otherCondition = ParseExpr();
+
+            if (Match(TokenType.In))
+            {
+                if (otherCondition is not NameExpr nameExpr)
+                    throw new Error("Expected name for iterator variable", otherCondition.Position);
+
+                Expr collection = ParseExpr();
+
+                return new ForeachStmt(nameExpr.Name, collection, ParseBody(true), position);
+            }
+
             List<Stmt> otherBody = ParseBody(true);
             return new ForStmt(otherCondition, otherBody, position);
         }

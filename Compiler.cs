@@ -14,12 +14,7 @@ namespace Polodum
 
     internal class ForContext
     {
-        public ForContext(int @continue)
-        {
-            Continue = @continue;
-        }
-
-        public int Continue { get; }
+        public List<int> Continue { get; } = new List<int>();
         public List<int> Breaks { get; } = new List<int>();
     }
 
@@ -279,7 +274,7 @@ namespace Polodum
 
                         int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), forStmt.Position);
 
-                        _forContexts.Push(new ForContext(loopStart));
+                        _forContexts.Push(new ForContext());
 
                         BeginScope();
 
@@ -296,6 +291,93 @@ namespace Polodum
                         foreach (int jump in context.Breaks)
                             Chunk.PatchJump(jump);
 
+                        foreach (int jump in context.Continue)
+                            Chunk.PatchJump(jump, loopStart);
+
+                        break;
+                    }
+
+                case ForeachStmt foreachStmt:
+                    {
+                        // [1, 2, 3, 4, 5]
+                        int collection = Chunk.MakeSyntheticLocal();
+
+                        CompileExpr(foreachStmt.Collection);
+
+                        Chunk.AddInstruction(new Instruction(Opcode.CanIterateStoreLocal, collection), foreachStmt.Position);
+
+                        int length = Chunk.MakeSyntheticLocal();
+
+                        // Loads [1, 2, 3, 4, 5]
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, collection), foreachStmt.Position);
+
+                        // 5
+                        Chunk.AddInstruction(new Instruction(Opcode.GetLength), foreachStmt.Position);
+
+                        // Store 5
+                        Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, length), foreachStmt.Position);
+
+                        // Load 0
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(new Value(0))), foreachStmt.Position);
+
+                        int i = Chunk.MakeSyntheticLocal();
+
+                        // Store 0 in i
+                        Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, i), foreachStmt.Position);
+
+                        int loopStart = Chunk.Instructions.Count;
+
+                        // Check if i < 5
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, i), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, length), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.Less), foreachStmt.Position);
+
+                        int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), foreachStmt.Position);
+
+                        _forContexts.Push(new ForContext());
+
+                        BeginScope();
+
+                        // Store the name item
+                        //CompileExpr(indexExpr.Index);
+                        //CompileExpr(indexExpr.Target);
+                        //Chunk.AddInstruction(new Instruction(Opcode.Index), indexExpr.Position);
+
+
+
+                        // Load i
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, i), foreachStmt.Position);
+                        // Load the array
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, collection), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.Index), foreachStmt.Position);
+                        int nextSlot = Chunk.LocalCount++;
+                        Scopes.Peek().Add(foreachStmt.Name, nextSlot);
+                        // Store array[i]
+                        Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, nextSlot), foreachStmt.Position);
+
+                        CompileStmts(foreachStmt.Body);
+
+                        int continueStart = Chunk.Instructions.Count;
+
+                        // i++
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, i), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(new Value(1))), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.Add), foreachStmt.Position);
+                        Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, i), foreachStmt.Position);
+
+                        EndScope();
+
+                        Chunk.AddInstruction(new Instruction(Opcode.Jump, loopStart), foreachStmt.Position);
+
+                        Chunk.PatchJump(jumpIfFalse);
+
+                        var context = _forContexts.Pop();
+
+                        foreach (int jump in context.Breaks)
+                            Chunk.PatchJump(jump);
+
+                        foreach (int jump in context.Continue)
+                            Chunk.PatchJump(jump, continueStart);
                         break;
                     }
 
@@ -337,14 +419,14 @@ namespace Polodum
 
                             int jumpIfFalse = Chunk.AddInstruction(new Instruction(Opcode.JumpIfFalsePop), continueStmt.Position);
 
-                            Chunk.AddInstruction(new Instruction(Opcode.Jump, context.Continue), continueStmt.Position);
+                            context.Continue.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), continueStmt.Position));
 
                             Chunk.PatchJump(jumpIfFalse);
 
                             break;
                         }
 
-                        Chunk.AddInstruction(new Instruction(Opcode.Jump, context.Continue), continueStmt.Position);
+                        context.Continue.Add(Chunk.AddInstruction(new Instruction(Opcode.Jump), continueStmt.Position));
 
                         break;
                     }

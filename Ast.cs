@@ -194,4 +194,18 @@ namespace Polodum
         public MemberExpr MemberExpr { get; }
         public Expr Value { get; }
     }
+
+    internal class ForeachStmt : Stmt
+    {
+        public ForeachStmt(string name, Expr collection, List<Stmt> body, Position position) : base(position, false, true)
+        {
+            Name = name;
+            Collection = collection;
+            Body = body;
+        }
+
+        public string Name { get; }
+        public Expr Collection { get; }
+        public List<Stmt> Body { get; }
+    }
 }

@@ -1,8 +1,3 @@
-player = enum("Player", "Go", "Stop", "Run");
-
-println(player.Go);
-println(player.Go.name);
-println(player.Go.value);
-
-println(player.Go == player.Go);
-println(player.Go == player.Stop);
+for x in [1, 2, 3, 4] do
+	println(x);
+end
