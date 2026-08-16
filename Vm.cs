@@ -231,7 +231,9 @@ namespace Polodum
                     if (myField.Mutable != otherField.Mutable)
                         throw new Error($"Record '{name}' does not match the record definition", position);
                 }
+                return;
             }
+            _existingRecords.Add(name, record);
         }
 
         public Vm(Chunk chunk)
@@ -309,8 +311,6 @@ namespace Polodum
                             Record record = new Record(recordFields, id);
 
                             MatchRecord(name, record, callFrame.GetPosition(instruction));
-
-                            _existingRecords.Add(name, record);
 
                             stack.Push(new Value(record));
                             break;
