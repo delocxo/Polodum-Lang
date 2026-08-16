@@ -58,7 +58,8 @@ namespace Polodum
             { "(", TokenType.LeftParen },
             { ")", TokenType.RightParen },
             { ",", TokenType.Comma },
-            { ".", TokenType.Period }
+            { ".", TokenType.Period },
+            { "#", TokenType.Hash }
         };
 
         public static string? GetKeywordFromType(TokenType type)

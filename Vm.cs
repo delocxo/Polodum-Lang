@@ -316,6 +316,42 @@ namespace Polodum
                             break;
                         }
 
+                    case Opcode.UnpackStoreLocals:
+                        {
+                            Value value = stack.Pop();
+
+                            bool isGlobal = instruction.A == 1 ? true : false;
+                            int[] slots = instruction.Extra;
+                            Position position = callFrame.GetPosition(instruction);
+
+                            if (value.IsRecord)
+                            {
+                                Record record = value.Record;
+
+                                if (slots.Length > record.Fields.Count)
+                                    throw new Error($"Unpack variable count more than record field count", position);
+
+                                var fields = record.Fields.Values;
+
+                                for (int i = 0; i < slots.Length; i++)
+                                {
+                                    if (slots[i] == -1)
+                                        continue;
+
+                                    RecordField recordField = fields[i];
+
+                                    if (isGlobal)
+                                        _localGlobals[slots[i]] = recordField.Value;
+                                    else
+                                        callFrame.Locals[slots[i]] = recordField.Value;
+                                }
+
+                                break;
+                            }
+
+                            throw new Error($"Type '{value.KindName}' cannot be unpacked into variables", position);
+                        }
+
                     case Opcode.GetName:
                         {
                             string name = callFrame.GetConstant(instruction.A).String;

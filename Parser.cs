@@ -47,6 +47,8 @@ namespace Polodum
                 return ParseContinue();
             else if (Check(TokenType.For))
                 return ParseFor();
+            else if (Check(TokenType.LeftBrace))
+                return ParseUnpackedVars();
             throw ThrowUnexpected();
         }
 
@@ -245,6 +247,42 @@ namespace Polodum
 
             List<Stmt> otherBody = ParseBody(true);
             return new ForStmt(otherCondition, otherBody, position);
+        }
+
+        UnpackedVarStmt ParseUnpackedVars()
+        {
+            ParsedUnpackedVariable ParseUnpackedVariable()
+            {
+                if (Match(TokenType.Hash))
+                    return new ParsedUnpackedVariable("", true);
+
+                string name = ParseName();
+                return new ParsedUnpackedVariable(name, false);
+            }
+
+            Position position = Current().Position;
+
+            Next();
+
+            List<ParsedUnpackedVariable> parsedUnpackedVariables = [];
+
+            if (!Check(TokenType.RightBrace))
+            {
+                parsedUnpackedVariables.Add(ParseUnpackedVariable());
+
+                while (Match(TokenType.Comma))
+                    parsedUnpackedVariables.Add(ParseUnpackedVariable());
+            }
+
+            Expect(TokenType.RightBrace);
+
+            Expect(TokenType.Equal);
+
+            Expr expr = ParseExpr();
+
+            Expect(TokenType.Semicolon);
+
+            return new UnpackedVarStmt(parsedUnpackedVariables, expr, position);
         }
 
         Error ThrowUnexpected()

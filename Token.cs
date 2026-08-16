@@ -18,7 +18,7 @@ namespace Polodum
 
         Equal, Semicolon, LeftBracket, RightBracket,
         LeftBrace, RightBrace, LeftParen, RightParen,
-        Comma, Period,
+        Comma, Period, Hash,
 
         Eof,
     }

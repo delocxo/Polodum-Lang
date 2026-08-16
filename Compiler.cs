@@ -18,6 +18,20 @@ namespace Polodum
         public List<int> Breaks { get; } = new List<int>();
     }
 
+    internal class ResolveResult
+    {
+        public ResolveResult(int slot, bool isGlobal)
+        {
+            Slot = slot;
+            IsGlobal = isGlobal;
+        }
+
+        public int Slot { get; }
+        public bool IsGlobal { get; }
+
+        public Opcode StoreOpcode => IsGlobal ? Opcode.StoreGlobal : Opcode.StoreLocal;
+    }
+
     internal class Compiler
     {
         public Chunk Chunk { get; set; } = new Chunk();
@@ -129,31 +143,9 @@ namespace Polodum
                     {
                         CompileExpr(varStmt.Value);
 
-                        Scope scope = Scopes.Peek();
+                        var result = ResolveOrDeclareVariable(varStmt.Name);
 
-                        if (TryResolveLocal(varStmt.Name, out int local))
-                        {
-                            Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, local), varStmt.Position);
-                            break;
-                        }
-                        else if (Globals.TryGetValue(varStmt.Name, out int global))
-                        {
-                            Chunk.AddInstruction(new Instruction(Opcode.StoreGlobal, global), varStmt.Position);
-                            break;
-                        }
-
-                        if (IsGlobal)
-                        {
-                            int nextSlot = Chunk.GlobalCount++;
-                            Globals.Add(varStmt.Name, nextSlot);
-                            Chunk.AddInstruction(new Instruction(Opcode.StoreGlobal, nextSlot), varStmt.Position);
-                        }
-                        else
-                        {
-                            int nextSlot = Chunk.LocalCount++;
-                            scope.Add(varStmt.Name, nextSlot);
-                            Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, nextSlot), varStmt.Position);
-                        }
+                        Chunk.AddInstruction(new Instruction(result.StoreOpcode, result.Slot), varStmt.Position);
 
                         break;
                     }
@@ -300,13 +292,13 @@ namespace Polodum
                 case ForeachStmt foreachStmt:
                     {
                         // [1, 2, 3, 4, 5]
-                        int collection = Chunk.MakeSyntheticLocal();
+                        int collection = Chunk.MakeLocal();
 
                         CompileExpr(foreachStmt.Collection);
 
                         Chunk.AddInstruction(new Instruction(Opcode.CanIterateStoreLocal, collection), foreachStmt.Position);
 
-                        int length = Chunk.MakeSyntheticLocal();
+                        int length = Chunk.MakeLocal();
 
                         // Loads [1, 2, 3, 4, 5]
                         Chunk.AddInstruction(new Instruction(Opcode.LoadLocal, collection), foreachStmt.Position);
@@ -320,7 +312,7 @@ namespace Polodum
                         // Load 0
                         Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(new Value(0))), foreachStmt.Position);
 
-                        int i = Chunk.MakeSyntheticLocal();
+                        int i = Chunk.MakeLocal();
 
                         // Store 0 in i
                         Chunk.AddInstruction(new Instruction(Opcode.StoreLocal, i), foreachStmt.Position);
@@ -448,6 +440,26 @@ namespace Polodum
                         CompileExpr(memberExpr.Target);
                         int memberConstant = Chunk.AddConstant(new Value(memberExpr.MemberName));
                         Chunk.AddInstruction(new Instruction(Opcode.MemberSet, memberConstant), memberExpr.Position);
+                        break;
+                    }
+
+                case UnpackedVarStmt unpackedVarStmt:
+                    {
+                        List<int> slots = new List<int>();
+
+                        CheckForDuplicateNames(unpackedVarStmt.UnpackedVariables.Select(x => x.Name).ToList(), " is a duplicated unpacked variable", unpackedVarStmt.Position);
+
+                        foreach (var unpackedVar in unpackedVarStmt.UnpackedVariables)
+                        {
+                            if (unpackedVar.IsDiscard)
+                                slots.Add(-1);
+                            else
+                                slots.Add(ResolveOrDeclareVariable(unpackedVar.Name).Slot);
+                        }
+
+                        CompileExpr(unpackedVarStmt.Expr);
+
+                        Chunk.AddInstruction(new Instruction(Opcode.UnpackStoreLocals, IsGlobal ? 1 : 0, slots.ToArray()), unpackedVarStmt.Position);
                         break;
                     }
             }
@@ -625,6 +637,33 @@ namespace Polodum
 
                         break;
                     }
+            }
+        }
+
+        ResolveResult ResolveOrDeclareVariable(string name)
+        {
+            Scope scope = Scopes.Peek();
+
+            if (TryResolveLocal(name, out int local))
+            {
+                return new ResolveResult(local, false);
+            }
+            else if (Globals.TryGetValue(name, out int global))
+            {
+                return new ResolveResult(global, true);
+            }
+
+            if (IsGlobal)
+            {
+                int nextGlobalSlot = Chunk.MakeGlobal();
+                Globals.Add(name, nextGlobalSlot);
+                return new ResolveResult(nextGlobalSlot, true);
+            }
+            else
+            {
+                int nextLocalSlot = Chunk.MakeLocal();
+                scope.Add(name, nextLocalSlot);
+                return new ResolveResult(nextLocalSlot, false);
             }
         }
 

@@ -33,6 +33,18 @@ namespace Polodum
     internal record MemberExpr(Expr Target, string MemberName, Position Position) : Expr(Position);
     internal record BinaryExpr(Expr Left, Expr Right, TokenType Op, Position Position) : Expr(Position);
 
+    struct ParsedUnpackedVariable
+    {
+        public ParsedUnpackedVariable(string name, bool isDiscard)
+        {
+            Name = name;
+            IsDiscard = isDiscard;
+        }
+
+        public string Name { get; }
+        public bool IsDiscard { get; }
+    }
+
     internal abstract class Stmt
     {
         public Stmt(Position position, bool topLevel, bool allowedAtLocalScope)
@@ -207,5 +219,17 @@ namespace Polodum
         public string Name { get; }
         public Expr Collection { get; }
         public List<Stmt> Body { get; }
+    }
+
+    internal class UnpackedVarStmt : Stmt
+    {
+        public UnpackedVarStmt(List<ParsedUnpackedVariable> unpackedVariables, Expr expr, Position position) : base(position, false, true)
+        {
+            UnpackedVariables = unpackedVariables;
+            Expr = expr;
+        }
+
+        public List<ParsedUnpackedVariable> UnpackedVariables { get; }
+        public Expr Expr { get; }
     }
 }

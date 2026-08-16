@@ -67,7 +67,8 @@ namespace Polodum
             PatchJump(index, Instructions.Count);
         }
 
-        public int MakeSyntheticLocal() => LocalCount++;
+        public int MakeLocal() => LocalCount++;
+        public int MakeGlobal() => GlobalCount++;
 
         public void Print()
         {

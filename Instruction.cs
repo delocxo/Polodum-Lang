@@ -13,6 +13,7 @@ namespace Polodum
         LoadConst,
         MakeArray,
         MakeRecord,
+        UnpackStoreLocals,
 
         GetName,
         GetLength,
@@ -90,11 +91,52 @@ namespace Polodum
             D = d;
         }
 
+        public Instruction(Opcode opcode, int[] extra) : this()
+        {
+            Opcode = opcode;
+            Extra = extra;
+        }
+
+        public Instruction(Opcode opcode, int a, int[] extra) : this()
+        {
+            Opcode = opcode;
+            A = a;
+            Extra = extra;
+        }
+
+        public Instruction(Opcode opcode, int a, int b, int[] extra) : this()
+        {
+            Opcode = opcode;
+            A = a;
+            B = b;
+            Extra = extra;
+        }
+
+        public Instruction(Opcode opcode, int a, int b, int c, int[] extra) : this()
+        {
+            Opcode = opcode;
+            A = a;
+            B = b;
+            C = c;
+            Extra = extra;
+        }
+
+        public Instruction(Opcode opcode, int a, int b, int c, int d, int[] extra) : this()
+        {
+            Opcode = opcode;
+            A = a;
+            B = b;
+            C = c;
+            D = d;
+            Extra = extra;
+        }
+
         public Opcode Opcode { get; }
         public int A { get; set; }
         public int B { get; set; }
         public int C { get; set; }
         public int D { get; set; }
+        public int[] Extra { get; set; }
         public int PositionIndex { get; set; }
     }
 }
