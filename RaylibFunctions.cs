@@ -148,6 +148,8 @@ namespace Polodum
             keys.Set("volumeUp", new Value((int)KeyboardKey.VolumeUp));
             keys.Set("volumeDown", new Value((int)KeyboardKey.VolumeDown));
 
+            @namespace.Set("keys", keysValue);
+
             #endregion Keys
 
             Namespace mouseButtons = new Namespace("mouseButtons");

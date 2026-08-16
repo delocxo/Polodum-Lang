@@ -203,6 +203,10 @@ namespace Polodum
             {
                 "raylib",
                 RaylibFunctions.Register()
+            },
+            {
+                "math",
+                MathFunctions.Register()
             }
         };
         
