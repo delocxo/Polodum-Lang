@@ -310,6 +310,8 @@ namespace Polodum
 
                             MatchRecord(name, record, callFrame.GetPosition(instruction));
 
+                            _existingRecords.Add(name, record);
+
                             stack.Push(new Value(record));
                             break;
                         }
