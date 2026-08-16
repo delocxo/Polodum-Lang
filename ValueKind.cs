@@ -16,6 +16,12 @@ namespace Polodum
         public string Name { get; }
     }
 
+    internal class TypeSpec
+    {
+        public int Kind { get; }
+        public TypeSpec[] TypeArguments = [];
+    }
+
     internal static class ValueKind
     {
         static List<KindInfo> s_types = new List<KindInfo>();
@@ -27,7 +33,11 @@ namespace Polodum
         public static int Bool = Register("bool");
         public static int Function = Register("function");
         public static int Array = Register("array");
+
+        // Special
         public static int Unpack = Register("unpack");
+        public static int Integer = Register("integer");
+        public static int Any = Register("any");
 
         // Runtime Core
         public static int NativeFunction = Register("native");

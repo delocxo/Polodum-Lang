@@ -30,6 +30,24 @@ namespace Polodum
             Values[name] = value;
         }
 
+        /// <summary>
+        /// Only for setting native functions
+        /// </summary>
+        public void SetNative(Value value)
+        {
+            Values[value.Native.Name] = value;
+
+        }
+
+        /// <summary>
+        /// Only for setting namespaces
+        /// </summary>
+        public Namespace SetNamespace(Namespace @namespace)
+        {
+            Values[@namespace.Name] = new Value(@namespace);
+            return @namespace;
+        }
+
         public Value Get(string name, Position position)
         {
             if (!Values.TryGetValue(name, out Value value))
@@ -140,9 +158,9 @@ namespace Polodum
             Kind = ValueKind.Namespace;
         }
 
-        public static Value FromNativeExpected(int arity, string name, string[] parameters, Value? bound, Native native)
+        public static Value FromNativeExpected(string name, string[] parameters, Value? bound, Native native)
         {
-            return new Value(new NativeFunction(arity, 0, ArgumentMode.Expected, name, parameters, bound, native));
+            return new Value(new NativeFunction(parameters.Length, 0, ArgumentMode.Expected, name, parameters, bound, native));
         }
 
         public static Value FromNativeUnlimited(string name, string parameter, Value? bound, Native native)
@@ -332,6 +350,8 @@ namespace Polodum
                     return this;
             throw new Error($"Expected type(s): {string.Join(", ", kinds.Select(x => ValueKind.GetName(x)))}: {message}", position);
         }
+
+        public T As<T>() => (T)Object!; 
 
         public int Kind { get; set; }
         public bool IsRecord { get; } = false;

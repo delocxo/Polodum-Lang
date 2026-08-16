@@ -18,9 +18,6 @@ namespace Polodum
 
             #region Keys
 
-            keys.Set("null", new Value(0));
-            keys.Set("a", new Value(64));
-
             keys.Set("null", new Value((int)KeyboardKey.Null));
 
             keys.Set("space", new Value((int)KeyboardKey.Space));
@@ -167,27 +164,26 @@ namespace Polodum
             @namespace.Set("mouseButtons", mouseButtonsValue);
             #endregion Mouse
 
-            Namespace time = new Namespace("time");
-            Value timeValue = new Value(time);
+            Namespace time = @namespace.SetNamespace(new Namespace("time"));
 
-            time.Set("frameTime", Value.FromNativeExpected(0, "frameTime", [], value, (args, pos) =>
+            time.SetNative(Value.FromNativeExpected("frameTime", [], value, (args, pos) =>
             {
                 return new Value(Raylib.GetFrameTime());
             }));
 
-            time.Set("fps", Value.FromNativeExpected(0, "fps", [], value, (args, pos) =>
+            time.SetNative(Value.FromNativeExpected("fps", [], value, (args, pos) =>
             {
                 return new Value(Raylib.GetFPS());
             }));
 
-            time.Set("time", Value.FromNativeExpected(0, "time", [], value, (args, pos) =>
+            time.SetNative(Value.FromNativeExpected("time", [], value, (args, pos) =>
             {
                 return new Value(Raylib.GetTime());
             }));
 
-            @namespace.Set("time", timeValue);
+            Namespace window = @namespace.SetNamespace(new Namespace("window"));
 
-            @namespace.Set("openWindow", Value.FromNativeExpected(3, "openWindow", ["width", "height", "title"], value, (args, pos) =>
+            window.SetNative(Value.FromNativeExpected("openWindow", ["width", "height", "title"], value, (args, pos) =>
             {
                 int width = args[0].ExpectIntInRangeIn(1, int.MaxValue, "Window width out of range", pos);
                 int height = args[1].ExpectIntInRangeIn(1, int.MaxValue, "Window height out of range", pos);
@@ -196,37 +192,164 @@ namespace Polodum
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("closeWindow", Value.FromNativeExpected(0, "closeWindow", [], value, (args, pos) =>
+            window.SetNative(Value.FromNativeExpected("closeWindow", [], value, (args, pos) =>
             {
                 Raylib.CloseWindow();
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("windowShouldClose", Value.FromNativeExpected(0, "windowShouldClose", [], value, (args, pos) =>
+            window.SetNative(Value.FromNativeExpected("windowShouldClose", [], value, (args, pos) =>
             {
                 return new Value((bool)Raylib.WindowShouldClose());
             }));
 
-            @namespace.Set("beginDraw", Value.FromNativeExpected(0, "beginDraw", [], value, (args, pos) =>
+            window.SetNative(Value.FromNativeExpected("windowReady", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowReady());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowFullScreen", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowFullscreen());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowHidden", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowHidden());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowMinimized", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowMinimized());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowMaximized", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowMaximized());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowResized", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowResized());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowFocused", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsWindowFocused());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("restoreWindow", [], value, (args, pos) =>
+            {
+                Raylib.RestoreWindow();
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("minimizeWindow", [], value, (args, pos) =>
+            {
+                Raylib.MinimizeWindow();
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("maximizeWindow", [], value, (args, pos) =>
+            {
+                Raylib.MaximizeWindow();
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("toggleFullScreen", [], value, (args, pos) =>
+            {
+                Raylib.ToggleFullscreen();
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("setWindowSize", ["width", "height"], value, (args, pos) =>
+            {
+                int width = args[0].ExpectIntInRangeIn(1, int.MaxValue, "Window width out of range", pos);
+                int height = args[1].ExpectIntInRangeIn(1, int.MaxValue, "Window height out of range", pos);
+                Raylib.SetWindowSize(width, height);
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("setWindowWidth", ["width"], value, (args, pos) =>
+            {
+                int width = args[0].ExpectIntInRangeIn(1, int.MaxValue, "Window width out of range", pos);
+                Raylib.SetWindowSize(width, Raylib.GetScreenHeight());
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("setWindowHeight", ["height"], value, (args, pos) =>
+            {
+                int height = args[0].ExpectIntInRangeIn(1, int.MaxValue, "Window height out of range", pos);
+                Raylib.SetWindowSize(Raylib.GetScreenWidth(), height);
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("setWindowTitle", ["title"], value, (args, pos) =>
+            {
+                string title = args[0].ExpectKinds("Expected window title string", pos, ValueKind.String).String;
+                Raylib.SetWindowTitle(title);
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowPositionX", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetWindowPosition().X);
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowPositionY", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetWindowPosition().Y);
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowScaleDpiX", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetWindowScaleDPI().X);
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowScaleDpiY", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetWindowScaleDPI().Y);
+            }));
+
+            window.SetNative(Value.FromNativeExpected("setTargetFps", ["targetFps"], value, (args, pos) =>
+            {
+                int targetFps = args[0].ExpectIntInRangeIn(0, int.MaxValue, "Target fps out of range", pos);
+                Raylib.SetTargetFPS(targetFps);
+                return Vm.MakeNone();
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowWidth", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetScreenWidth());
+            }));
+
+            window.SetNative(Value.FromNativeExpected("windowHeight", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetScreenHeight());
+            }));
+
+            Namespace draw = @namespace.SetNamespace(new Namespace("draw"));
+
+            draw.Set("beginDraw", Value.FromNativeExpected("beginDraw", [], value, (args, pos) =>
             {
                 Raylib.BeginDrawing();
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("endDraw", Value.FromNativeExpected(0, "endDraw", [], value, (args, pos) =>
+            draw.Set("endDraw", Value.FromNativeExpected("endDraw", [], value, (args, pos) =>
             {
                 Raylib.EndDrawing();
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("clear", Value.FromNativeExpected(4, "clear", ["r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("clear", Value.FromNativeExpected("clear", ["r", "g", "b", "a"], value, (args, pos) =>
             {
                 Color color = ExpectColor(args, pos);
                 Raylib.ClearBackground(color);
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("drawText", Value.FromNativeExpected(8, "drawText", ["text", "x", "y", "size", "r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("drawText", Value.FromNativeExpected("drawText", ["text", "x", "y", "size", "r", "g", "b", "a"], value, (args, pos) =>
             {
                 string title = args[0].ExpectKinds("Expected text", pos, ValueKind.String).String;
                 int x = args[1].ExpectInt(pos);
@@ -237,7 +360,7 @@ namespace Polodum
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("drawRect", Value.FromNativeExpected(8, "drawRect", ["x", "y", "width", "height", "r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("drawRect", Value.FromNativeExpected("drawRect", ["x", "y", "width", "height", "r", "g", "b", "a"], value, (args, pos) =>
             {
                 int x = args[0].ExpectInt(pos);
                 int y = args[1].ExpectInt(pos);
@@ -248,7 +371,7 @@ namespace Polodum
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("drawCircle", Value.FromNativeExpected(7, "drawCircle", ["x", "y", "radius", "r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("drawCircle", Value.FromNativeExpected("drawCircle", ["x", "y", "radius", "r", "g", "b", "a"], value, (args, pos) =>
             {
                 int x = args[0].ExpectInt(pos);
                 int y = args[1].ExpectInt(pos);
@@ -258,31 +381,44 @@ namespace Polodum
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("keyDown", Value.FromNativeExpected(1, "keyDown", ["key"], value, (args, pos) =>
+            draw.Set("drawLine", Value.FromNativeExpected("drawLine", ["startX", "startY", "endX", "endY", "r", "g", "b", "a"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                int endX = args[2].ExpectInt(pos);
+                int endY = args[3].ExpectInt(pos);
+                Color color = ExpectColor(args, pos);
+                Raylib.DrawLine(x, y, endX, endY, color);
+                return Vm.MakeNone();
+            }));
+
+            Namespace input = @namespace.SetNamespace(new Namespace("input"));
+
+            input.Set("keyDown", Value.FromNativeExpected("keyDown", ["key"], value, (args, pos) =>
             {
                 KeyboardKey key = ExpectKey(args[0], pos);
                 return new Value((bool)Raylib.IsKeyDown(key));
             }));
 
-            @namespace.Set("keyPressed", Value.FromNativeExpected(1, "keyPressed", ["key"], value, (args, pos) =>
+            input.Set("keyPressed", Value.FromNativeExpected("keyPressed", ["key"], value, (args, pos) =>
             {
                 KeyboardKey key = ExpectKey(args[0], pos);
                 return new Value((bool)Raylib.IsKeyPressed(key));
             }));
 
-            @namespace.Set("keyReleased", Value.FromNativeExpected(1, "keyReleased", ["key"], value, (args, pos) =>
+            input.Set("keyReleased", Value.FromNativeExpected("keyReleased", ["key"], value, (args, pos) =>
             {
                 KeyboardKey key = ExpectKey(args[0], pos);
                 return new Value((bool)Raylib.IsKeyReleased(key));
             }));
 
-            @namespace.Set("keyUp", Value.FromNativeExpected(1, "keyUp", ["key"], value, (args, pos) =>
+            input.Set("keyUp", Value.FromNativeExpected("keyUp", ["key"], value, (args, pos) =>
             {
                 KeyboardKey key = ExpectKey(args[0], pos);
                 return new Value((bool)Raylib.IsKeyUp(key));
             }));
 
-            @namespace.Set("getKeyName", Value.FromNativeExpected(1, "getKeyName", ["key"], value, (args, pos) =>
+            input.Set("getKeyName", Value.FromNativeExpected("getKeyName", ["key"], value, (args, pos) =>
             {
                 KeyboardKey key = ExpectKey(args[0], pos);
                 unsafe
@@ -293,65 +429,131 @@ namespace Polodum
                 }
             }));
 
-            @namespace.Set("getKeyPressed", Value.FromNativeExpected(0, "getKeyPressed", [], value, (args, pos) =>
+            input.Set("getKeyPressed", Value.FromNativeExpected("getKeyPressed", [], value, (args, pos) =>
             {
                 return new Value(Raylib.GetKeyPressed());
             }));
 
-            @namespace.Set("mouseDown", Value.FromNativeExpected(1, "mouseDown", ["mouseButton"], value, (args, pos) =>
+            input.Set("mouseDown", Value.FromNativeExpected("mouseDown", ["mouseButton"], value, (args, pos) =>
             {
                 MouseButton mouseButton = ExpectMouseButton(args[0], pos);
                 return new Value((bool)Raylib.IsMouseButtonDown(mouseButton));
             }));
 
-            @namespace.Set("mousePressed", Value.FromNativeExpected(1, "mousePressed", ["mouseButton"], value, (args, pos) =>
+            input.Set("mousePressed", Value.FromNativeExpected("mousePressed", ["mouseButton"], value, (args, pos) =>
             {
                 MouseButton mouseButton = ExpectMouseButton(args[0], pos);
                 return new Value((bool)Raylib.IsMouseButtonPressed(mouseButton));
             }));
 
-            @namespace.Set("mouseReleased", Value.FromNativeExpected(1, "mouseReleased", ["mouseButton"], value, (args, pos) =>
+            input.Set("mouseReleased", Value.FromNativeExpected("mouseReleased", ["mouseButton"], value, (args, pos) =>
             {
                 MouseButton mouseButton = ExpectMouseButton(args[0], pos);
                 return new Value((bool)Raylib.IsMouseButtonReleased(mouseButton));
             }));
 
-            @namespace.Set("mouseUp", Value.FromNativeExpected(1, "mouseUp", ["mouseButton"], value, (args, pos) =>
+            input.Set("mouseUp", Value.FromNativeExpected("mouseUp", ["mouseButton"], value, (args, pos) =>
             {
                 MouseButton mouseButton = ExpectMouseButton(args[0], pos);
                 return new Value((bool)Raylib.IsMouseButtonUp(mouseButton));
             }));
 
-            @namespace.Set("mouseX", Value.FromNativeExpected(0, "mouseX", [], value, (args, pos) =>
-            {
-                return new Value(Raylib.GetMouseX());
-            }));
-
-            @namespace.Set("mouseY", Value.FromNativeExpected(0, "mouseY", [], value, (args, pos) =>
-            {
-                return new Value(Raylib.GetMouseY());
-            }));
-
-            @namespace.Set("mouseWheel", Value.FromNativeExpected(0, "mouseWheel", [], value, (args, pos) =>
+            input.Set("mouseWheel", Value.FromNativeExpected("mouseWheel", [], value, (args, pos) =>
             {
                 return new Value(Raylib.GetMouseWheelMove());
             }));
 
-            @namespace.Set("setTargetFps", Value.FromNativeExpected(1, "setTargetFps", ["targetFps"], value, (args, pos) =>
+            input.SetNative(Value.FromNativeExpected("keyPressedRepeat", ["key"], value, (args, pos) =>
             {
-                int targetFps = args[0].ExpectIntInRangeIn(0, int.MaxValue, "Target fps out of range", pos);
-                Raylib.SetTargetFPS(targetFps);
+                KeyboardKey key = ExpectKey(args[0], pos);
+                return new Value((bool)Raylib.IsKeyPressedRepeat(key));
+            }));
+
+            input.SetNative(Value.FromNativeExpected("setExitKey", ["key"], value, (args, pos) =>
+            {
+                KeyboardKey key = ExpectKey(args[0], pos);
+                Raylib.SetExitKey(key);
                 return Vm.MakeNone();
             }));
 
-            @namespace.Set("windowWidth", Value.FromNativeExpected(0, "windowWidth", [], value, (args, pos) =>
+            input.SetNative(Value.FromNativeExpected("charPressed", [], value, (args, pos) =>
             {
-                return new Value(Raylib.GetScreenWidth());
+                return new Value(Raylib.GetCharPressed());
             }));
 
-            @namespace.Set("windowHeight", Value.FromNativeExpected(0, "windowHeight", [], value, (args, pos) =>
+            Namespace mouse = @namespace.SetNamespace(new Namespace("mouse"));
+
+            mouse.SetNative(Value.FromNativeExpected("mouseDeltaX", [], value, (args, pos) =>
             {
-                return new Value(Raylib.GetScreenHeight());
+                return new Value(Raylib.GetMouseDelta().X);
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("mouseDeltaY", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetMouseDelta().Y);
+            }));
+
+            mouse.Set("mouseX", Value.FromNativeExpected("mouseX", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetMouseX());
+            }));
+
+            mouse.Set("mouseY", Value.FromNativeExpected("mouseY", [], value, (args, pos) =>
+            {
+                return new Value(Raylib.GetMouseY());
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("setMousePosition", ["x", "y"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                Raylib.SetMousePosition(x, y);
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("setMouseOffset", ["x", "y"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                Raylib.SetMouseOffset(x, y);
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("setMouseScale", ["x", "y"], value, (args, pos) =>
+            {
+                float x = args[0].ExpectFloat32(pos);
+                float y = args[1].ExpectFloat32(pos);
+                Raylib.SetMouseScale(x, y);
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("showCursor", [], value, (args, pos) =>
+            {
+                Raylib.ShowCursor();
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("hideCursor", [], value, (args, pos) =>
+            {
+                Raylib.HideCursor();
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("cursorHidden", [], value, (args, pos) =>
+            {
+                return new Value((bool)Raylib.IsCursorHidden());
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("enableCursor", [], value, (args, pos) =>
+            {
+                Raylib.EnableCursor();
+                return Vm.MakeNone();
+            }));
+
+            mouse.SetNative(Value.FromNativeExpected("disableCursor", [], value, (args, pos) =>
+            {
+                Raylib.DisableCursor();
+                return Vm.MakeNone();
             }));
 
             return value;

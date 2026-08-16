@@ -125,14 +125,14 @@ namespace Polodum
         {
             {
                 "input",
-                Value.FromNativeExpected(0, "input", [], null, (_, _) =>
+                Value.FromNativeExpected("input", [], null, (_, _) =>
                 {
                     return new Value(Console.ReadLine() ?? "");
                 })
             },
             {
                 "print",
-                Value.FromNativeExpected(1, "print", ["object"], null, (args, _) =>
+                Value.FromNativeExpected("print", ["object"], null, (args, _) =>
                 {
                     Console.Write(args[0]);
                     return MakeNone();
@@ -140,7 +140,7 @@ namespace Polodum
             },
             {
                 "println",
-                Value.FromNativeExpected(1, "println", ["object"], null, (args, _) =>
+                Value.FromNativeExpected("println", ["object"], null, (args, _) =>
                 {
                     Console.WriteLine(args[0]);
                     return MakeNone();
@@ -148,14 +148,14 @@ namespace Polodum
             },
             {
                 "typeof",
-                Value.FromNativeExpected(1, "typeof", ["object"], null, (args, _) =>
+                Value.FromNativeExpected("typeof", ["object"], null, (args, _) =>
                 {
                     return new Value(args[0].KindName);
                 })
             },
             {
                 "some",
-                Value.FromNativeExpected(1, "some", ["value"], null, (args, _) =>
+                Value.FromNativeExpected("some", ["value"], null, (args, _) =>
                 {
                     return Value.FromRecord(new Dictionary<string, RecordField>()
                     {
@@ -168,7 +168,7 @@ namespace Polodum
             },
             {
                 "none",
-                Value.FromNativeExpected(0, "none", [], null, (_, _) =>
+                Value.FromNativeExpected("none", [], null, (_, _) =>
                 {
                     return Value.FromRecord([], ValueKind.None);
                 })
@@ -195,7 +195,7 @@ namespace Polodum
             },
             {
                 "toString",
-                Value.FromNativeExpected(1, "toString", ["value"], null, (args, _) =>
+                Value.FromNativeExpected("toString", ["value"], null, (args, _) =>
                 {
                     return new Value(args[0].ToString());
                 })
@@ -290,29 +290,7 @@ namespace Polodum
 
                     case Opcode.MakeRecord:
                         {
-                            string name = callFrame.GetConstant(instruction.A).String;
-                            int fieldCount = instruction.B;
-
-                            Dictionary<string, RecordField> recordFields = new Dictionary<string, RecordField>();
-
-                            for (int i = fieldCount - 1; i >= 0; i--)
-                            {
-                                string fieldName = stack.Pop().String;
-                                bool mutable = stack.Pop().Bool;
-                                Value value = stack.Pop();
-
-                                recordFields.Add(fieldName, new RecordField(fieldName, mutable, value));
-                            }
-
-                            recordFields = recordFields.Reverse().ToDictionary(x => x.Key, x => x.Value);
-
-                            int id = ValueKind.Register(name);
-
-                            Record record = new Record(recordFields, id);
-
-                            MatchRecord(name, record, callFrame.GetPosition(instruction));
-
-                            stack.Push(new Value(record));
+                            MakeRecord(stack, callFrame, instruction);
                             break;
                         }
 
@@ -343,7 +321,7 @@ namespace Polodum
                                     if (isGlobal)
                                         _localGlobals[slots[i]] = recordField.Value;
                                     else
-                                        callFrame.Locals[slots[i]] = recordField.Value;
+                                        callFrame.Locals[slots[i]]  = recordField.Value;
                                 }
 
                                 break;
@@ -757,91 +735,8 @@ namespace Polodum
                             Value target = stack.Pop();
                             string memberName = callFrame.GetConstant(instruction.A).String;
                             Position position = callFrame.GetPosition(instruction);
-
-                            if (target.IsRecord)
-                            {
-                                Record record = target.Record;
-
-                                if (memberName == "fieldCount")
-                                {
-                                    stack.Push(new Value(record.Fields.Count));
-                                    break;
-                                }
-                                else if (memberName == "getField")
-                                {
-                                    stack.Push(Value.FromNativeExpected(1, "getField", ["key"], target, (args, pos) =>
-                                    {
-                                        Value key = args[0];
-                                        key.ExpectKinds($"'{target.KindName}' getField expects only those types", pos, ValueKind.String, ValueKind.Number);
-
-                                        if (key.IsKind(ValueKind.String))
-                                        {
-                                            if (!record.Fields.TryGetValue(key.String, out RecordField? recordField))
-                                                throw new Error($"Record '{target.KindName}' does not contain field '{key.String}'", pos);
-
-                                            return MakeField(recordField.Name, recordField.Mutable, recordField.Value);
-                                        }
-
-                                        int intKey = key.ExpectIntInRangeEx(0, record.Fields.Count, $"'{target.KindName}' getField index out of range", pos);
-
-                                        RecordField otherField = record.Fields.ElementAt(intKey).Value;
-
-                                        return MakeField(otherField.Name, otherField.Mutable, otherField.Value);
-                                    }));
-
-                                    break;
-                                }
-                                else if (memberName == "getFields")
-                                {
-
-                                    stack.Push(Value.FromNativeExpected(0, "getFields", [], target, (args, pos) =>
-                                    {
-                                        PoloArray fieldArray = new PoloArray();
-
-                                        foreach (var fieldPair in record.Fields)
-                                        {
-                                            RecordField field = fieldPair.Value;
-                                            fieldArray.Add(MakeField(field.Name, field.Mutable, field.Value));
-                                        }
-
-                                        return new Value(fieldArray);
-                                    }));
-
-                                    break;
-                                }
-
-                                if (!record.Fields.TryGetValue(memberName, out RecordField? recordField))
-                                    throw new Error($"Record '{target.KindName}' does not contain field '{memberName}'", position);
-
-                                stack.Push(recordField.Value);
-                                break;
-                            }
-
-                            else if (target.IsKind(ValueKind.Array))
-                            {
-                                stack.Push(GetArrayMembers(target, memberName, position));
-                                break;
-                            }
-
-                            else if (target.IsKind(ValueKind.String))
-                            {
-                                stack.Push(GetStringMembers(target, memberName, position));
-                                break;
-                            }
-
-                            else if (target.IsKind(ValueKind.Namespace))
-                            {
-                                stack.Push(target.Namespace.Get(memberName, position));
-                                break;
-                            }
-
-                            else if (target.IsKind(ValueKind.Number))
-                            {
-                                stack.Push(GetNumberMembers(target, memberName, position));
-                                break;
-                            }
-
-                            throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
+                            stack.Push(GetMember(target, memberName, position));
+                            break;
                         }
 
                     case Opcode.MemberSet:
@@ -910,14 +805,14 @@ namespace Polodum
                 return new Value(array.Count == 0);
 
             else if (member == "push")
-                return Value.FromNativeExpected(1, "push", ["item"], arrayValue, (args, _) =>
+                return Value.FromNativeExpected("push", ["item"], arrayValue, (args, _) =>
                 {
                     array.Add(args[0]);
                     return MakeNone();
                 });
 
             else if (member == "pushRange")
-                return Value.FromNativeExpected(1, "pushRange", ["otherArray"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("pushRange", ["otherArray"], arrayValue, (args, pos) =>
                 {
                     PoloArray otherArray = args[0]
                         .ExpectKinds("Expected other array", pos, ValueKind.Array)
@@ -927,7 +822,7 @@ namespace Polodum
                 });
 
             else if (member == "insert")
-                return Value.FromNativeExpected(2, "insert", ["index", "item"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("insert", ["index", "item"], arrayValue, (args, pos) =>
                 {
                     int index = args[0]
                         .ExpectIntInRangeIn(0, array.Count, "Insert index out of range", pos);
@@ -936,7 +831,7 @@ namespace Polodum
                 });
 
             else if (member == "insertRange")
-                return Value.FromNativeExpected(2, "insertRange", ["index", "otherArray"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("insertRange", ["index", "otherArray"], arrayValue, (args, pos) =>
                 {
                     int index = args[0]
                         .ExpectIntInRangeIn(0, array.Count, "Insert index out of range", pos);
@@ -948,7 +843,7 @@ namespace Polodum
                 });
 
             else if (member == "remove")
-                return Value.FromNativeExpected(1, "remove", ["value"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("remove", ["value"], arrayValue, (args, pos) =>
                 {
                     for (int i = 0; i < array.Count; i++)
                         if (Value.CheckEquallity(args[0], array[i]))
@@ -960,7 +855,7 @@ namespace Polodum
                 });
 
             else if (member == "removeAt")
-                return Value.FromNativeExpected(1, "removeAt", ["index"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("removeAt", ["index"], arrayValue, (args, pos) =>
                 {
                     int index = args[0]
                         .ExpectIntInRangeEx(0, array.Count, "Remove index out of range", pos);
@@ -969,7 +864,7 @@ namespace Polodum
                 });
 
             else if (member == "contains")
-                return Value.FromNativeExpected(1, "contains", ["value"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("contains", ["value"], arrayValue, (args, pos) =>
                 {
                     for (int i = 0; i < array.Count; i++)
                         if (Value.CheckEquallity(args[0], array[i]))
@@ -978,7 +873,7 @@ namespace Polodum
                 });
 
             else if (member == "indexOf")
-                return Value.FromNativeExpected(1, "indexOf", ["value"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("indexOf", ["value"], arrayValue, (args, pos) =>
                 {
                     for (int i = 0; i < array.Count; i++)
                         if (Value.CheckEquallity(args[0], array[i]))
@@ -987,28 +882,28 @@ namespace Polodum
                 });
 
             else if (member == "clear")
-                return Value.FromNativeExpected(0, "clear", [], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("clear", [], arrayValue, (args, pos) =>
                 {
                     array.Clear();
                     return MakeNone();
                 });
 
             else if (member == "reverse")
-                return Value.FromNativeExpected(0, "reverse", [], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("reverse", [], arrayValue, (args, pos) =>
                 {
                     array.Reverse();
                     return MakeNone();
                 });
 
             else if (member == "copy")
-                return Value.FromNativeExpected(0, "copy", [], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("copy", [], arrayValue, (args, pos) =>
                 {
                     PoloArray newArray = [.. array];
                     return new Value(newArray);
                 });
 
             else if (member == "getRange")
-                return Value.FromNativeExpected(2, "getRange", ["start", "end"], arrayValue, (args, pos) =>
+                return Value.FromNativeExpected("getRange", ["start", "end"], arrayValue, (args, pos) =>
                 {
                     int start = args[0]
                         .ExpectIntInRangeIn(0, array.Count, "Start index out of range", pos);
@@ -1033,61 +928,61 @@ namespace Polodum
                 return new Value(str.Length == 0);
 
             else if (member == "contains")
-                return Value.FromNativeExpected(1, "contains", ["value"], stringValue, (args, _) =>
+                return Value.FromNativeExpected("contains", ["value"], stringValue, (args, _) =>
                 {
                     return new Value(str.Contains(args[0].ToString()));
                 });
 
             else if (member == "indexOf")
-                return Value.FromNativeExpected(1, "indexOf", ["value"], stringValue, (args, _) =>
+                return Value.FromNativeExpected("indexOf", ["value"], stringValue, (args, _) =>
                 {
                     return new Value(str.IndexOf(args[0].ToString()));
                 });
 
             else if (member == "startsWith")
-                return Value.FromNativeExpected(1, "startsWith", ["value"], stringValue, (args, _) =>
+                return Value.FromNativeExpected("startsWith", ["value"], stringValue, (args, _) =>
                 {
                     return new Value(str.StartsWith(args[0].ToString()));
                 });
 
             else if (member == "endsWith")
-                return Value.FromNativeExpected(1, "endsWith", ["value"], stringValue, (args, _) =>
+                return Value.FromNativeExpected("endsWith", ["value"], stringValue, (args, _) =>
                 {
                     return new Value(str.EndsWith(args[0].ToString()));
                 });
 
             else if (member == "trim")
-                return Value.FromNativeExpected(0, "trim", [], stringValue, (args, _) =>
+                return Value.FromNativeExpected("trim", [], stringValue, (args, _) =>
                 {
                     return new Value(str.Trim());
                 });
 
             else if (member == "trimStart")
-                return Value.FromNativeExpected(0, "trimStart", [], stringValue, (args, _) =>
+                return Value.FromNativeExpected("trimStart", [], stringValue, (args, _) =>
                 {
                     return new Value(str.TrimStart());
                 });
 
             else if (member == "trimEnd")
-                return Value.FromNativeExpected(0, "trimEnd", [], stringValue, (args, _) =>
+                return Value.FromNativeExpected("trimEnd", [], stringValue, (args, _) =>
                 {
                     return new Value(str.TrimEnd());
                 });
 
             else if (member == "toLower")
-                return Value.FromNativeExpected(0, "toLower", [], stringValue, (args, _) =>
+                return Value.FromNativeExpected("toLower", [], stringValue, (args, _) =>
                 {
                     return new Value(str.ToLower());
                 });
 
             else if (member == "toUpper")
-                return Value.FromNativeExpected(0, "toUpper", [], stringValue, (args, _) =>
+                return Value.FromNativeExpected("toUpper", [], stringValue, (args, _) =>
                 {
                     return new Value(str.ToUpper());
                 });
 
             else if (member == "sub")
-                return Value.FromNativeExpected(2, "sub", ["start", "end"], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("sub", ["start", "end"], stringValue, (args, pos) =>
                 {
                     int start = args[0]
                         .ExpectIntInRangeIn(0, str.Length, "Start index out of range", pos);
@@ -1099,13 +994,13 @@ namespace Polodum
                 });
 
             else if (member == "replace")
-                return Value.FromNativeExpected(2, "replace", ["old", "new"], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("replace", ["old", "new"], stringValue, (args, pos) =>
                 {
                     return new Value(str.Replace(args[0].ToString(), args[1].ToString()));
                 });
 
             else if (member == "repeat")
-                return Value.FromNativeExpected(1, "repeat", ["amount"], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("repeat", ["amount"], stringValue, (args, pos) =>
                 {
                     int amount = args[0]
                         .ExpectIntInRangeIn(0, int.MaxValue, "Repeat amount out of range", pos);
@@ -1116,7 +1011,7 @@ namespace Polodum
                 });
 
             else if (member == "split")
-                return Value.FromNativeExpected(1, "split", ["separator"], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("split", ["separator"], stringValue, (args, pos) =>
                 {
                     string[] split = str.Split(args[0].ToString());
                     PoloArray splitArray = new PoloArray(split.Length);
@@ -1126,41 +1021,41 @@ namespace Polodum
                 });
 
             else if (member == "isAlpha")
-                return Value.FromNativeExpected(0, "isAlpha", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("isAlpha", [], stringValue, (args, pos) =>
                 {
                     return new Value(str.Length > 0 && str.All(char.IsLetter));
                 });
 
             else if (member == "isDigit")
-                return Value.FromNativeExpected(0, "isDigit", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("isDigit", [], stringValue, (args, pos) =>
                 {
                     return new Value(str.Length > 0 && str.All(char.IsDigit));
                 });
 
             else if (member == "isWhite")
-                return Value.FromNativeExpected(0, "isWhite", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("isWhite", [], stringValue, (args, pos) =>
                 {
                     return new Value(str.Length > 0 && str.All(char.IsWhiteSpace));
                 });
 
             else if (member == "isAlphaDigit")
-                return Value.FromNativeExpected(0, "isAlphaDigit", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("isAlphaDigit", [], stringValue, (args, pos) =>
                 {
                     return new Value(str.Length > 0 && str.All(char.IsLetterOrDigit));
                 });
 
             else if (member == "tryParse")
-                return Value.FromNativeExpected(0, "tryParse", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("tryParse", [], stringValue, (args, pos) =>
                 {
-                    if (float.TryParse(str, out float result))
+                    if (double.TryParse(str, out double result))
                         return MakeSome(new Value(result));
                     return MakeNone();
                 });
 
             else if (member == "parse")
-                return Value.FromNativeExpected(0, "parse", [], stringValue, (args, pos) =>
+                return Value.FromNativeExpected("parse", [], stringValue, (args, pos) =>
                 {
-                    if (float.TryParse(str, out float result))
+                    if (double.TryParse(str, out double result))
                         return new Value(result);
                     throw new Error("Failed to convert string to number", pos);
                 });
@@ -1173,66 +1068,171 @@ namespace Polodum
             double number = numberValue.Number;
 
             if (member == "isWhole")
-                return Value.FromNativeExpected(0, "isWhole", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isWhole", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsInteger(number));
                 });
 
-            else if (member == "truncate")
-                return Value.FromNativeExpected(0, "truncate", [], numberValue, (args, _) =>
+            else if (member == "trunc")
+                return Value.FromNativeExpected("trunc", [], numberValue, (args, _) =>
                 {
                     return new Value(double.Truncate(number));
                 });
 
             else if (member == "isNan")
-                return Value.FromNativeExpected(0, "isNan", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isNan", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsNaN(number));
                 });
 
             else if (member == "isInfinity")
-                return Value.FromNativeExpected(0, "isInfinity", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isInfinity", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsInfinity(number));
                 });
 
             else if (member == "isPositiveInfinity")
-                return Value.FromNativeExpected(0, "isPositiveInfinity", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isPositiveInfinity", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsPositiveInfinity(number));
                 });
 
             else if (member == "isNegativeInfinity")
-                return Value.FromNativeExpected(0, "isNegativeInfinity", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isNegativeInfinity", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsNegativeInfinity(number));
                 });
 
             else if (member == "isFinite")
-                return Value.FromNativeExpected(0, "isFinite", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isFinite", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsFinite(number));
                 });
 
             else if (member == "isNormal")
-                return Value.FromNativeExpected(0, "isNormal", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isNormal", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsNormal(number));
                 });
 
             else if (member == "isSubnormal")
-                return Value.FromNativeExpected(0, "isSubnormal", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isSubnormal", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsSubnormal(number));
                 });
 
             else if (member == "isNegative")
-                return Value.FromNativeExpected(0, "isNegative", [], numberValue, (args, _) =>
+                return Value.FromNativeExpected("isNegative", [], numberValue, (args, _) =>
                 {
                     return new Value(double.IsNegative(number));
                 });
 
             throw new Error($"Type 'number' does not contain member '{member}'", position);
+        }
+
+        Value GetMember(Value target, string memberName, Position position)
+        {
+            if (target.IsRecord)
+            {
+                Record record = target.Record;
+
+                if (memberName == "fieldCount")
+                {
+                    return new Value(record.Fields.Count);
+                }
+                else if (memberName == "getField")
+                {
+                    return Value.FromNativeExpected("getField", ["key"], target, (args, pos) =>
+                    {
+                        Value key = args[0];
+                        key.ExpectKinds($"'{target.KindName}' getField expects only those types", pos, ValueKind.String, ValueKind.Number);
+
+                        if (key.IsKind(ValueKind.String))
+                        {
+                            if (!record.Fields.TryGetValue(key.String, out RecordField? recordField))
+                                throw new Error($"Record '{target.KindName}' does not contain field '{key.String}'", pos);
+
+                            return MakeField(recordField.Name, recordField.Mutable, recordField.Value);
+                        }
+
+                        int intKey = key.ExpectIntInRangeEx(0, record.Fields.Count, $"'{target.KindName}' getField index out of range", pos);
+
+                        RecordField otherField = record.Fields.ElementAt(intKey).Value;
+
+                        return MakeField(otherField.Name, otherField.Mutable, otherField.Value);
+                    });
+                }
+                else if (memberName == "getFields")
+                {
+
+                    return Value.FromNativeExpected("getFields", [], target, (args, pos) =>
+                    {
+                        PoloArray fieldArray = new PoloArray();
+
+                        foreach (var fieldPair in record.Fields)
+                        {
+                            RecordField field = fieldPair.Value;
+                            fieldArray.Add(MakeField(field.Name, field.Mutable, field.Value));
+                        }
+
+                        return new Value(fieldArray);
+                    });
+                }
+
+                if (!record.Fields.TryGetValue(memberName, out RecordField? recordField))
+                    throw new Error($"Record '{target.KindName}' does not contain field '{memberName}'", position);
+
+                return recordField.Value;
+            }
+
+            else if (target.IsKind(ValueKind.Array))
+            {
+                return GetArrayMembers(target, memberName, position);
+            }
+
+            else if (target.IsKind(ValueKind.String))
+            {
+                return GetStringMembers(target, memberName, position);
+            }
+
+            else if (target.IsKind(ValueKind.Namespace))
+            {
+                return target.Namespace.Get(memberName, position);
+            }
+
+            else if (target.IsKind(ValueKind.Number))
+            {
+                return GetNumberMembers(target, memberName, position);
+            }
+
+            throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
+        }
+
+        void MakeRecord(Stack<Value> stack, CallFrame callFrame, Instruction instruction)
+        {
+            string name = callFrame.GetConstant(instruction.A).String;
+            int fieldCount = instruction.B;
+
+            Dictionary<string, RecordField> recordFields = new Dictionary<string, RecordField>();
+
+            for (int i = fieldCount - 1; i >= 0; i--)
+            {
+                string fieldName = stack.Pop().String;
+                bool mutable = stack.Pop().Bool;
+                Value value = stack.Pop();
+
+                recordFields.Add(fieldName, new RecordField(fieldName, mutable, value));
+            }
+
+            recordFields = recordFields.Reverse().ToDictionary(x => x.Key, x => x.Value);
+
+            int id = ValueKind.Register(name);
+
+            Record record = new Record(recordFields, id);
+
+            MatchRecord(name, record, callFrame.GetPosition(instruction));
+
+            stack.Push(new Value(record));
         }
 
         Error ThrowBinaryError(Value left, Value right, string op, Instruction instruction)
