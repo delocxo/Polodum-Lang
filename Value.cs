@@ -15,6 +15,29 @@ namespace Polodum
         Minimum,
     }
 
+    internal class Namespace
+    {
+        public Namespace(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
+        public Dictionary<string, Value> Values { get; } = new Dictionary<string, Value>();
+
+        public void Set(string name, Value value)
+        {
+            Values[name] = value;
+        }
+
+        public Value Get(string name, Position position)
+        {
+            if (!Values.TryGetValue(name, out Value value))
+                throw new Error($"Namespace '{Name}' does not contain member '{name}'", position);
+            return value;
+        }
+    }
+
     internal class RecordField
     {
         public RecordField(string name, bool mutable, Value value)
@@ -111,6 +134,12 @@ namespace Polodum
             Kind = ValueKind.NativeFunction;
         }
 
+        public Value(Namespace @namespace)
+        {
+            Object = @namespace;
+            Kind = ValueKind.Namespace;
+        }
+
         public static Value FromNativeExpected(int arity, string name, string[] parameters, Value? bound, Native native)
         {
             return new Value(new NativeFunction(arity, 0, ArgumentMode.Expected, name, parameters, bound, native));
@@ -129,6 +158,15 @@ namespace Polodum
         public static Value FromRecord(Dictionary<string, RecordField> fields, int id)
         {
             return new Value(new Record(fields, id));
+        }
+
+        public static Value FromUnpack(PoloArray poloArray)
+        {
+            return new Value()
+            {
+                Kind = ValueKind.Unpack,
+                Object = poloArray
+            };
         }
 
         public static Value False => new Value(false);
@@ -151,7 +189,7 @@ namespace Polodum
                 return $"<function {FunctionInfo.Name}({paremeters})>";
             }
 
-            else if (Kind == ValueKind.Array)
+            else if (Kind == ValueKind.Array || Kind == ValueKind.Unpack)
             {
                 string elements = string.Join(", ", Array.Select(x => x.Stringify()));
                 return $"[{elements}]";
@@ -172,6 +210,9 @@ namespace Polodum
                 string paremeters = string.Join(", ", Native.Parameters);
                 return $"<native function {Native.Name}({paremeters})>";
             }
+
+            else if (Kind == ValueKind.Namespace)
+                return $"<namespace {Namespace.Name}>";
 
             return "invalid type";
         }
@@ -203,6 +244,9 @@ namespace Polodum
             else if (left.IsKind(ValueKind.Array) && right.IsKind(ValueKind.Array))
                 return left.Array == right.Array;
 
+            else if (left.IsKind(ValueKind.Unpack) && right.IsKind(ValueKind.Unpack))
+                return left.Array == right.Array;
+
             else if (left.IsRecord && right.IsRecord)
                 return left.Record == right.Record;
 
@@ -219,6 +263,9 @@ namespace Polodum
 
                 return false;
             }
+
+            else if (left.IsKind(ValueKind.Namespace) && right.IsKind(ValueKind.Namespace))
+                return left.Namespace == right.Namespace;
 
             return false;
         }
@@ -249,6 +296,17 @@ namespace Polodum
             return (int)Number;
         }
 
+        public float ExpectFloat32(Position position)
+        {
+            if (!IsKind(ValueKind.Number))
+                throw new Error("Expected number", position);
+
+            if (Number < float.MinValue || Number > float.MaxValue)
+                throw new Error("Float32 out of range", position);
+
+            return (float)Number;
+        }
+
         public int ExpectIntInRange(bool isExclusive, int min, int max, string message, Position position)
         {
             int integer = ExpectInt(position);
@@ -275,15 +333,16 @@ namespace Polodum
             throw new Error($"Expected type(s): {string.Join(", ", kinds.Select(x => ValueKind.GetName(x)))}: {message}", position);
         }
 
-        public int Kind { get; }
+        public int Kind { get; set; }
         public bool IsRecord { get; } = false;
         public double Number { get; }
         public string String { get; } = string.Empty;
         public bool Bool { get; }
-        public object? Object { get; }
+        public object? Object { get; set; }
         public FunctionInfo FunctionInfo => (FunctionInfo)Object!;
         public PoloArray Array => (PoloArray)Object!;
         public Record Record => (Record)Object!;
         public NativeFunction Native => (NativeFunction)Object!;
+        public Namespace Namespace => (Namespace)Object!;
     }
 }

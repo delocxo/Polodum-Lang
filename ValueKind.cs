@@ -27,6 +27,7 @@ namespace Polodum
         public static int Bool = Register("bool");
         public static int Function = Register("function");
         public static int Array = Register("array");
+        public static int Unpack = Register("unpack");
 
         // Runtime Core
         public static int NativeFunction = Register("native");
@@ -35,6 +36,7 @@ namespace Polodum
         public static int Field = Register("Field");
         public static int Enum = Register("Enum");
         public static int EnumValue = Register("EnumValue");
+        public static int Namespace = Register("namespace");
 
         public static int Register(string name)
         {

@@ -29,9 +29,9 @@ namespace Polodum
         Stack<CallFrame> _frames = new Stack<CallFrame>();
         Value[] _localGlobals;
 
-        static Value MakeNone() => Value.FromRecord([], ValueKind.None);
+        public static Value MakeNone() => Value.FromRecord([], ValueKind.None);
 
-        static Value MakeSome(Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
+        public static Value MakeSome(Value value) => Value.FromRecord(new Dictionary<string, RecordField>()
         {
             {
                 "value",
@@ -192,6 +192,17 @@ namespace Polodum
 
                     return MakeEnum(name, names, pos);
                 })
+            },
+            {
+                "toString",
+                Value.FromNativeExpected(1, "toString", ["value"], null, (args, _) =>
+                {
+                    return new Value(args[0].ToString());
+                })
+            },
+            {
+                "raylib",
+                RaylibFunctions.Register()
             }
         };
         
@@ -286,6 +297,8 @@ namespace Polodum
 
                                 recordFields.Add(fieldName, new RecordField(fieldName, mutable, value));
                             }
+
+                            recordFields = recordFields.Reverse().ToDictionary(x => x.Key, x => x.Value);
 
                             int id = ValueKind.Register(name);
 
@@ -509,6 +522,28 @@ namespace Polodum
                             throw new Error($"Cannot apply negate to {right.KindName}", callFrame.GetPosition(instruction));
                         }
 
+                    case Opcode.Unpack:
+                        {
+                            Value right = stack.Pop();
+
+                            if (right.IsKind(ValueKind.Array))
+                            {
+                                stack.Push(Value.FromUnpack(right.Array));
+                                break;
+                            }
+                            else if (right.IsRecord)
+                            {
+                                Record record = right.Record;
+                                PoloArray values = new PoloArray(record.Fields.Count);
+                                foreach (var field in record.Fields.Values)
+                                    values.Add(field.Value);
+                                stack.Push(Value.FromUnpack(values));
+                                break;
+                            }
+
+                            throw new Error($"Cannot unpack type '{right.KindName}'", callFrame.GetPosition(instruction));
+                        }
+
                     case Opcode.Is:
                         {
                             Value left = stack.Pop();
@@ -580,16 +615,22 @@ namespace Polodum
                             Position position = callFrame.GetPosition(instruction);
 
                             for (int i = 0; i < argCount; i++)
-                                arguments.Add(default);
+                            {
+                                Value argument = stack.Pop();
+                                if (argument.IsKind(ValueKind.Unpack))
+                                    for (int j = argument.Array.Count - 1; j >= 0; j--)
+                                        arguments.Add(argument.Array[j]);
+                                else
+                                    arguments.Add(argument);
+                            }
 
-                            for (int i = argCount - 1; i >= 0; i--)
-                                arguments[i] = stack.Pop();
+                            arguments.Reverse();
 
                             if (target.IsKind(ValueKind.Function))
                             {
                                 FunctionInfo functionInfo = target.FunctionInfo;
 
-                                ValidateArguments(functionInfo.Arity, argCount, ArgumentMode.Expected, functionInfo.Name, position);
+                                ValidateArguments(functionInfo.Arity, arguments.Count, ArgumentMode.Expected, functionInfo.Name, position);
 
                                 CallFrame newCallFrame = new CallFrame(functionInfo.Chunk);
 
@@ -604,7 +645,7 @@ namespace Polodum
                             {
                                 NativeFunction nativeFunction = target.Native;
 
-                                ValidateArguments(nativeFunction.Arity, argCount, nativeFunction.ArgumentMode, nativeFunction.Name, position);
+                                ValidateArguments(nativeFunction.Arity, arguments.Count, nativeFunction.ArgumentMode, nativeFunction.Name, position);
 
                                 stack.Push(nativeFunction.Native(arguments, position));
 
@@ -746,6 +787,18 @@ namespace Polodum
                                 break;
                             }
 
+                            else if (target.IsKind(ValueKind.Namespace))
+                            {
+                                stack.Push(target.Namespace.Get(memberName, position));
+                                break;
+                            }
+
+                            else if (target.IsKind(ValueKind.Number))
+                            {
+                                stack.Push(GetNumberMembers(target, memberName, position));
+                                break;
+                            }
+
                             throw new Error($"Type '{target.KindName}' cannot be member accessed", position);
                         }
 
@@ -811,7 +864,7 @@ namespace Polodum
             if (member == "length")
                 return new Value(array.Count);
 
-            else if (member == "empty")
+            else if (member == "isEmpty")
                 return new Value(array.Count == 0);
 
             else if (member == "push")
@@ -1054,7 +1107,90 @@ namespace Polodum
                     return new Value(str.Length > 0 && str.All(char.IsLetterOrDigit));
                 });
 
+            else if (member == "tryParse")
+                return Value.FromNativeExpected(0, "tryParse", [], stringValue, (args, pos) =>
+                {
+                    if (float.TryParse(str, out float result))
+                        return MakeSome(new Value(result));
+                    return MakeNone();
+                });
+
+            else if (member == "parse")
+                return Value.FromNativeExpected(0, "parse", [], stringValue, (args, pos) =>
+                {
+                    if (float.TryParse(str, out float result))
+                        return new Value(result);
+                    throw new Error("Failed to convert string to number", pos);
+                });
+
             throw new Error($"Type 'string' does not contain member '{member}'", position);
+        }
+
+        Value GetNumberMembers(Value numberValue, string member, Position position)
+        {
+            double number = numberValue.Number;
+
+            if (member == "isWhole")
+                return Value.FromNativeExpected(0, "isWhole", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsInteger(number));
+                });
+
+            else if (member == "truncate")
+                return Value.FromNativeExpected(0, "truncate", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.Truncate(number));
+                });
+
+            else if (member == "isNan")
+                return Value.FromNativeExpected(0, "isNan", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsNaN(number));
+                });
+
+            else if (member == "isInfinity")
+                return Value.FromNativeExpected(0, "isInfinity", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsInfinity(number));
+                });
+
+            else if (member == "isPositiveInfinity")
+                return Value.FromNativeExpected(0, "isPositiveInfinity", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsPositiveInfinity(number));
+                });
+
+            else if (member == "isNegativeInfinity")
+                return Value.FromNativeExpected(0, "isNegativeInfinity", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsNegativeInfinity(number));
+                });
+
+            else if (member == "isFinite")
+                return Value.FromNativeExpected(0, "isFinite", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsFinite(number));
+                });
+
+            else if (member == "isNormal")
+                return Value.FromNativeExpected(0, "isNormal", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsNormal(number));
+                });
+
+            else if (member == "isSubnormal")
+                return Value.FromNativeExpected(0, "isSubnormal", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsSubnormal(number));
+                });
+
+            else if (member == "isNegative")
+                return Value.FromNativeExpected(0, "isNegative", [], numberValue, (args, _) =>
+                {
+                    return new Value(double.IsNegative(number));
+                });
+
+            throw new Error($"Type 'number' does not contain member '{member}'", position);
         }
 
         Error ThrowBinaryError(Value left, Value right, string op, Instruction instruction)

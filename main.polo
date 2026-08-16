@@ -1,3 +1,575 @@
-for x in [1, 2, 3, 4] do
-	println(x);
+rl = raylib;
+
+
+// Helpers
+
+proc color(r, g, b, a)
+    ret Color {
+        r = r,
+        g = g,
+        b = b,
+        a = a
+    };
 end
+
+proc rgb(r, g, b)
+    ret color(r, g, b, 255);
+end
+
+proc insideRect(mx, my, x, y, width, height)
+    ret mx >= x &&
+        mx <= x + width &&
+        my >= y &&
+        my <= y + height;
+end
+
+proc insideCircle(mx, my, x, y, radius)
+    dx = mx - x;
+    dy = my - y;
+
+    ret dx * dx + dy * dy <= radius * radius;
+end
+
+
+// Colors
+
+background = rgb(32, 24, 20);
+leftPanel = rgb(48, 32, 24);
+storePanel = rgb(38, 34, 40);
+
+white = rgb(255, 255, 255);
+gray = rgb(190, 185, 180);
+darkGray = rgb(115, 110, 105);
+gold = rgb(255, 210, 90);
+
+cookieColor = rgb(205, 135, 60);
+cookieHover = rgb(230, 155, 70);
+cookiePressed = rgb(180, 110, 45);
+chipColor = rgb(80, 40, 20);
+
+storeItem = rgb(65, 58, 68);
+storeItemHover = rgb(82, 73, 88);
+storeItemDisabled = rgb(45, 42, 48);
+
+upgradeColor = rgb(110, 80, 35);
+upgradeHover = rgb(140, 100, 42);
+upgradeBought = rgb(48, 45, 42);
+
+
+// Game state
+
+game = Game {
+    mut cookies = 0,
+    mut totalCookies = 0,
+    mut clickPower = 1,
+    mut cpsMultiplier = 1
+};
+
+
+// Buildings
+
+buildings = [
+    Building {
+        name = "Cursor",
+        description = "Autoclicks once in a while",
+        mut owned = 0,
+        mut cost = 15,
+        cps = 0.1,
+        costIncrease = 3
+    },
+
+    Building {
+        name = "Grandma",
+        description = "Bakes cookies",
+        mut owned = 0,
+        mut cost = 100,
+        cps = 1,
+        costIncrease = 15
+    },
+
+    Building {
+        name = "Farm",
+        description = "Grows cookie plants",
+        mut owned = 0,
+        mut cost = 1100,
+        cps = 8,
+        costIncrease = 165
+    },
+
+    Building {
+        name = "Factory",
+        description = "Mass produces cookies",
+        mut owned = 0,
+        mut cost = 12000,
+        cps = 47,
+        costIncrease = 1800
+    }
+];
+
+
+// Upgrades
+
+upgrades = [
+    Upgrade {
+        name = "Strong Finger",
+        description = "x2 clicks",
+        cost = 100,
+        clickMultiplier = 2,
+        cpsMultiplier = 1,
+        mut bought = false
+    },
+
+    Upgrade {
+        name = "Steel Mouse",
+        description = "x2 clicks",
+        cost = 500,
+        clickMultiplier = 2,
+        cpsMultiplier = 1,
+        mut bought = false
+    },
+
+    Upgrade {
+        name = "Better Ovens",
+        description = "x2 CPS",
+        cost = 1500,
+        clickMultiplier = 1,
+        cpsMultiplier = 2,
+        mut bought = false
+    }
+];
+
+
+rl.openWindow(1100, 700, "Polodum Cookie Clicker");
+rl.setTargetFps(60);
+
+
+for !rl.windowShouldClose() do
+
+    dt = rl.time.frameTime();
+
+    width = rl.windowWidth();
+    height = rl.windowHeight();
+
+    mouseX = rl.mouseX();
+    mouseY = rl.mouseY();
+
+    leftPressed = rl.mousePressed(rl.mouseButtons.left);
+    leftDown = rl.mouseDown(rl.mouseButtons.left);
+
+
+    // Calculate cookies per second
+
+    cps = 0;
+
+    for building in buildings do
+        cps = cps + building.cps * building.owned;
+    end
+
+    cps = cps * game.cpsMultiplier;
+
+
+    // Passive cookie production
+
+    produced = cps * dt;
+
+    game.cookies = game.cookies + produced;
+    game.totalCookies = game.totalCookies + produced;
+
+
+    // Main cookie
+
+    cookieX = 270;
+    cookieY = height / 2;
+    cookieRadius = 125;
+
+    overCookie = insideCircle(
+        mouseX,
+        mouseY,
+        cookieX,
+        cookieY,
+        cookieRadius
+    );
+
+    if overCookie && leftPressed do
+        game.cookies = game.cookies + game.clickPower;
+        game.totalCookies = game.totalCookies + game.clickPower;
+    end
+
+
+    // Building shop
+
+    storeX = width - 400;
+    storeWidth = 380;
+    buildingY = 145;
+
+    for building in buildings do
+
+        hovered = insideRect(
+            mouseX,
+            mouseY,
+            storeX,
+            buildingY,
+            storeWidth,
+            90
+        );
+
+        if hovered &&
+            leftPressed &&
+            game.cookies >= building.cost do
+
+            game.cookies = game.cookies - building.cost;
+
+            building.owned = building.owned + 1;
+            building.cost = building.cost + building.costIncrease;
+        end
+
+        buildingY = buildingY + 100;
+    end
+
+
+    // Upgrade shop
+
+    upgradeX = 20;
+    upgradeY = height - 115;
+
+    for upgrade in upgrades do
+
+        hovered = insideRect(
+            mouseX,
+            mouseY,
+            upgradeX,
+            upgradeY,
+            155,
+            75
+        );
+
+        if !upgrade.bought &&
+            hovered &&
+            leftPressed &&
+            game.cookies >= upgrade.cost do
+
+            game.cookies = game.cookies - upgrade.cost;
+
+            game.clickPower =
+                game.clickPower * upgrade.clickMultiplier;
+
+            game.cpsMultiplier =
+                game.cpsMultiplier * upgrade.cpsMultiplier;
+
+            upgrade.bought = true;
+        end
+
+        upgradeX = upgradeX + 165;
+    end
+
+
+    // Draw
+
+    rl.beginDraw();
+
+    rl.clear(*background);
+
+
+    // Left bakery area
+
+    rl.drawRect(
+        0,
+        0,
+        540,
+        height,
+        *leftPanel
+    );
+
+    rl.drawText(
+        "POLODUM BAKERY",
+        30,
+        25,
+        30,
+        *gold
+    );
+
+    rl.drawText(
+        toString(game.cookies) + " cookies",
+        30,
+        70,
+        32,
+        *white
+    );
+
+    rl.drawText(
+        "per second: " + toString(cps),
+        30,
+        110,
+        20,
+        *gray
+    );
+
+    rl.drawText(
+        "per click: " + toString(game.clickPower),
+        30,
+        138,
+        18,
+        *gray
+    );
+
+
+    // Cookie shadow
+
+    rl.drawCircle(
+        cookieX + 8,
+        cookieY + 10,
+        cookieRadius,
+        25,
+        18,
+        15,
+        180
+    );
+
+
+    // Big cookie
+
+    if overCookie && leftDown do
+
+        rl.drawCircle(
+            cookieX,
+            cookieY,
+            cookieRadius - 6,
+            *cookiePressed
+        );
+
+    elseif overCookie do
+
+        rl.drawCircle(
+            cookieX,
+            cookieY,
+            cookieRadius + 5,
+            *cookieHover
+        );
+
+    else
+
+        rl.drawCircle(
+            cookieX,
+            cookieY,
+            cookieRadius,
+            *cookieColor
+        );
+
+    end
+
+
+    // Chocolate chips
+
+    rl.drawCircle(cookieX - 52, cookieY - 45, 12, *chipColor);
+    rl.drawCircle(cookieX + 25, cookieY - 62, 10, *chipColor);
+    rl.drawCircle(cookieX + 67, cookieY - 15, 13, *chipColor);
+
+    rl.drawCircle(cookieX - 67, cookieY + 10, 9, *chipColor);
+    rl.drawCircle(cookieX - 20, cookieY + 30, 14, *chipColor);
+    rl.drawCircle(cookieX + 50, cookieY + 52, 11, *chipColor);
+
+    rl.drawCircle(cookieX + 10, cookieY - 10, 8, *chipColor);
+    rl.drawCircle(cookieX - 35, cookieY + 72, 7, *chipColor);
+
+
+    // Store panel
+
+    rl.drawRect(
+        width - 420,
+        0,
+        420,
+        height,
+        *storePanel
+    );
+
+    rl.drawText(
+        "STORE",
+        storeX,
+        25,
+        32,
+        *gold
+    );
+
+    rl.drawText(
+        "Buildings",
+        storeX,
+        90,
+        24,
+        *white
+    );
+
+
+    // Draw buildings
+
+    buildingY = 145;
+
+    for building in buildings do
+
+        hovered = insideRect(
+            mouseX,
+            mouseY,
+            storeX,
+            buildingY,
+            storeWidth,
+            90
+        );
+
+        buildingColor = storeItem;
+
+        if game.cookies < building.cost do
+            buildingColor = storeItemDisabled;
+        elseif hovered do
+            buildingColor = storeItemHover;
+        end
+
+        rl.drawRect(
+            storeX,
+            buildingY,
+            storeWidth,
+            90,
+            *buildingColor
+        );
+
+        rl.drawText(
+            building.name,
+            storeX + 15,
+            buildingY + 10,
+            23,
+            *white
+        );
+
+        rl.drawText(
+            building.description,
+            storeX + 15,
+            buildingY + 38,
+            15,
+            *gray
+        );
+
+        rl.drawText(
+            "+" + toString(building.cps) + " CPS",
+            storeX + 15,
+            buildingY + 62,
+            15,
+            *gold
+        );
+
+        rl.drawText(
+            "Cost: " + toString(building.cost),
+            storeX + 205,
+            buildingY + 38,
+            15,
+            *white
+        );
+
+        rl.drawText(
+            "Owned: " + toString(building.owned),
+            storeX + 205,
+            buildingY + 62,
+            15,
+            *gray
+        );
+
+        buildingY = buildingY + 100;
+    end
+
+
+    // Upgrades
+
+    rl.drawText(
+        "UPGRADES",
+        20,
+        height - 150,
+        20,
+        *gold
+    );
+
+    upgradeX = 20;
+
+    for upgrade in upgrades do
+
+        hovered = insideRect(
+            mouseX,
+            mouseY,
+            upgradeX,
+            upgradeY,
+            155,
+            75
+        );
+
+        drawColor = upgradeColor;
+
+        if upgrade.bought do
+            drawColor = upgradeBought;
+        elseif game.cookies < upgrade.cost do
+            drawColor = storeItemDisabled;
+        elseif hovered do
+            drawColor = upgradeHover;
+        end
+
+        rl.drawRect(
+            upgradeX,
+            upgradeY,
+            155,
+            75,
+            *drawColor
+        );
+
+        rl.drawText(
+            upgrade.name,
+            upgradeX + 8,
+            upgradeY + 8,
+            15,
+            *white
+        );
+
+        rl.drawText(
+            upgrade.description,
+            upgradeX + 8,
+            upgradeY + 30,
+            13,
+            *gray
+        );
+
+        if upgrade.bought do
+
+            rl.drawText(
+                "BOUGHT",
+                upgradeX + 8,
+                upgradeY + 52,
+                14,
+                *gray
+            );
+
+        else
+
+            rl.drawText(
+                "Cost: " + toString(upgrade.cost),
+                upgradeX + 8,
+                upgradeY + 52,
+                14,
+                *gold
+            );
+
+        end
+
+        upgradeX = upgradeX + 165;
+    end
+
+
+    // FPS
+
+    rl.drawText(
+        "FPS: " + toString(rl.time.fps()),
+        5,
+        5,
+        13,
+        *darkGray
+    );
+
+
+    rl.endDraw();
+end
+
+
+rl.closeWindow();

@@ -508,6 +508,7 @@ namespace Polodum
                         {
                             TokenType.Sub => Opcode.Neg,
                             TokenType.Bang => Opcode.Not,
+                            TokenType.Mul => Opcode.Unpack,
                             _ => throw new UnreachableException()
                         };
                         Chunk.AddInstruction(new Instruction(op), unaryExpr.Position);

@@ -31,6 +31,7 @@ namespace Polodum
         NotEqual,
         Not,
         Neg,
+        Unpack,
         Is,
         Isnt,
 

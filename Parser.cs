@@ -498,7 +498,7 @@ namespace Polodum
 
         Expr ParseUnary()
         {
-            if (Check(TokenType.Sub, TokenType.Bang))
+            if (Check(TokenType.Sub, TokenType.Bang, TokenType.Mul))
             {
                 Token op = Current();
 
