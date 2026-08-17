@@ -1,6 +1,8 @@
-﻿using System;
+﻿using Polodum.NativeFunctions;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -27,7 +29,7 @@ namespace Polodum
     internal class Vm
     {
         Stack<CallFrame> _frames = new Stack<CallFrame>();
-        Value[] _localGlobals;
+        Value[] _vmGlobals;
 
         public static Value MakeNone() => Value.FromRecord([], ValueKind.None);
 
@@ -175,7 +177,7 @@ namespace Polodum
             },
             {
                 "enum",
-                Value.FromNativeMinimum(1, "enum", ["name"], "values", null, (args, pos) =>
+                Value.FromNativeMinimum("enum", ["name"], "values", null, (args, pos) =>
                 {
                     List<string> names = new List<string>();
 
@@ -200,18 +202,9 @@ namespace Polodum
                     return new Value(args[0].ToString());
                 })
             },
-            {
-                "raylib",
-                RaylibFunctions.Register()
-            },
-            {
-                "math",
-                MathFunctions.Register()
-            }
         };
-        
 
-        public void MatchRecord(string name, Record record, Position position)
+        void MatchRecord(string name, Record record, Position position)
         {
             if (_existingRecords.TryGetValue(name, out Record? other))
             {
@@ -238,7 +231,8 @@ namespace Polodum
 
         public Vm(Chunk chunk)
         {
-            _localGlobals = new Value[chunk.GlobalCount];
+            NativeFunctionsRegistry.RegisterAll(_globals);
+            _vmGlobals = new Value[chunk.GlobalCount];
             _frames.Push(new CallFrame(chunk));
         }
 
@@ -261,11 +255,11 @@ namespace Polodum
                         break;
 
                     case Opcode.LoadGlobal:
-                        stack.Push(_localGlobals[instruction.A]);
+                        stack.Push(_vmGlobals[instruction.A]);
                         break;
 
                     case Opcode.StoreGlobal:
-                        _localGlobals[instruction.A] = stack.Pop();
+                        _vmGlobals[instruction.A] = stack.Pop();
                         break;
 
                     case Opcode.LoadConst:
@@ -319,7 +313,7 @@ namespace Polodum
                                     RecordField recordField = fields[i];
 
                                     if (isGlobal)
-                                        _localGlobals[slots[i]] = recordField.Value;
+                                        _vmGlobals[slots[i]] = recordField.Value;
                                     else
                                         callFrame.Locals[slots[i]]  = recordField.Value;
                                 }

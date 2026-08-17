@@ -168,9 +168,9 @@ namespace Polodum
             return new Value(new NativeFunction(-1, 0, ArgumentMode.Unlimited, name, [parameter], bound, native));
         }
 
-        public static Value FromNativeMinimum(int minArity, string name, string[] paremeters, string other, Value? bound, Native native)
+        public static Value FromNativeMinimum(string name, string[] paremeters, string other, Value? bound, Native native)
         {
-            return new Value(new NativeFunction(minArity, 0, ArgumentMode.Minimum, name, [..paremeters, other], bound, native));
+            return new Value(new NativeFunction(paremeters.Length, 0, ArgumentMode.Minimum, name, [..paremeters, other], bound, native));
         }
 
         public static Value FromRecord(Dictionary<string, RecordField> fields, int id)
@@ -295,6 +295,13 @@ namespace Polodum
             if (value.IsKind(ValueKind.None))
                 return false;
             return true;
+        }
+
+        public Value ExpectKind(int kind, string message, Position position)
+        {
+            if (!IsKind(kind))
+                throw new Error(message, position);
+            return this;
         }
 
         public bool IsKind(int kind) => Kind == kind;

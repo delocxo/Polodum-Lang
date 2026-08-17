@@ -5,11 +5,13 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Polodum
+namespace Polodum.NativeFunctions
 {
-    internal static class RaylibFunctions
+    internal class RaylibFunctions : INativeFunctions
     {
-        public static Value Register()
+        public string Name { get; } = "raylib";
+
+        public Value Register()
         {
             Namespace @namespace = new Namespace("raylib");
             Value value = new Value(@namespace);

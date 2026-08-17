@@ -4,11 +4,13 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Polodum
+namespace Polodum.NativeFunctions
 {
-    internal static class MathFunctions
+    internal class MathFunctions : INativeFunctions
     {
-        public static Value Register()
+        public string Name { get; } = "math";
+
+        public Value Register()
         {
             Namespace @namespace = new Namespace("math");
             Value value = new Value(@namespace);
