@@ -143,7 +143,7 @@ namespace Polodum
                     {
                         CompileExpr(varStmt.Value);
 
-                        var result = ResolveOrDeclareVariable(varStmt.Name);
+                        var result = ResolveOrDeclareVariable(varStmt.Name, varStmt.Position);
 
                         Chunk.AddInstruction(new Instruction(result.StoreOpcode, result.Slot), varStmt.Position);
 
@@ -454,7 +454,7 @@ namespace Polodum
                             if (unpackedVar.IsDiscard)
                                 slots.Add(-1);
                             else
-                                slots.Add(ResolveOrDeclareVariable(unpackedVar.Name).Slot);
+                                slots.Add(ResolveOrDeclareVariable(unpackedVar.Name, unpackedVarStmt.Position).Slot);
                         }
 
                         CompileExpr(unpackedVarStmt.Expr);
@@ -505,6 +505,10 @@ namespace Polodum
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.LoadGlobal, global), nameExpr.Position);
                         }
+                        else if (Vm.Globals.TryGetValue(nameExpr.Name, out Value value))
+                        {
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(value)), nameExpr.Position);
+                        }
                         else
                         {
                             Chunk.AddInstruction(new Instruction(Opcode.GetName, Chunk.AddConstant(new Value(nameExpr.Name))), nameExpr.Position);
@@ -529,6 +533,15 @@ namespace Polodum
 
                 case CallExpr callExpr:
                     {
+                        if (callExpr.Callee is NameExpr nameExpr &&
+                            callExpr.Arguments.Count == 0 &&
+                            nameExpr.Name == "none" &&
+                            IsBuiltinName("none"))
+                        {
+                            int constant = Chunk.AddConstant(Vm.MakeNone());
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, constant), callExpr.Position);
+                            break;
+                        }
                         callExpr.Arguments.ForEach(CompileExpr);
                         CompileExpr(callExpr.Callee);
                         Chunk.AddInstruction(new Instruction(Opcode.Call, callExpr.Arguments.Count), callExpr.Position);
@@ -537,6 +550,7 @@ namespace Polodum
 
                 case ArrayExpr arrayExpr:
                     {
+                        arrayExpr.Exprs.Reverse();
                         arrayExpr.Exprs.ForEach(CompileExpr);
                         Chunk.AddInstruction(new Instruction(Opcode.MakeArray, arrayExpr.Exprs.Count), arrayExpr.Position);
                         break;
@@ -553,6 +567,15 @@ namespace Polodum
                 case RecordExpr recordExpr:
                     {
                         CheckForDuplicateNames(recordExpr.Fields.Select(x => x.Name).ToList(), $"is a duplicate field inside record '{recordExpr.Name}'", recordExpr.Position);
+
+                        Record record = new Record(recordExpr.Fields
+                            .Select(x => new RecordField(x.Name, x.Mutable, Value.False))
+                            .ToDictionary(x => x.Name, x => x),
+                            ValueKind.Register(recordExpr.Name));
+
+                        MatchRecord(recordExpr.Name, record, recordExpr.Position);
+                        recordExpr.Fields.Reverse();
+
                         foreach (var field in recordExpr.Fields)
                         {
                             CompileExpr(field.Expr);
@@ -566,6 +589,11 @@ namespace Polodum
 
                 case MemberExpr memberExpr:
                     {
+                        if (TryResolveGetMember(memberExpr, out Value value))
+                        {
+                            Chunk.AddInstruction(new Instruction(Opcode.LoadConst, Chunk.AddConstant(value)), memberExpr.Position);
+                            break;
+                        }
                         CompileExpr(memberExpr.Target);
                         int memberConstant = Chunk.AddConstant(new Value(memberExpr.MemberName));
                         Chunk.AddInstruction(new Instruction(Opcode.GetMember, memberConstant), memberExpr.Position);
@@ -640,8 +668,11 @@ namespace Polodum
             }
         }
 
-        ResolveResult ResolveOrDeclareVariable(string name)
+        ResolveResult ResolveOrDeclareVariable(string name, Position position)
         {
+            if (Functions.ContainsKey(name))
+                throw new Error($"Variable '{name}' is an already existing function", position);
+
             Scope scope = Scopes.Peek();
 
             if (TryResolveLocal(name, out int local))
@@ -701,5 +732,57 @@ namespace Polodum
 
         public void AddHalt() => Chunk.Instructions.Add(new Instruction(Opcode.Halt));
 
+        bool TryResolveGetMember(MemberExpr memberExpr, out Value value)
+        {
+            if (memberExpr.Target is NameExpr nameExpr && Vm.Globals.TryGetValue(nameExpr.Name, out value) && IsBuiltinName(nameExpr.Name))
+            {
+                if (value.IsKind(ValueKind.Namespace))
+                {
+                    value = value.Namespace.Get(memberExpr.MemberName, memberExpr.Position);
+                    return true;
+                }
+            }
+            else if (memberExpr.Target is MemberExpr memberExpr2 && TryResolveGetMember(memberExpr2, out value))
+            {
+                if (value.IsKind(ValueKind.Namespace))
+                {
+                    value = value.Namespace.Get(memberExpr.MemberName, memberExpr.Position);
+                    return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+        void MatchRecord(string name, Record record, Position position)
+        {
+            if (Vm.ExistingRecords.TryGetValue(name, out Record? other))
+            {
+                if (record.Fields.Count != other.Fields.Count)
+                    throw new Error($"Record '{name}' does not match the record definition", position);
+
+                foreach (var field in record.Fields)
+                {
+                    RecordField myField = field.Value;
+
+                    if (!other.Fields.TryGetValue(field.Key, out RecordField? otherField))
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+
+                    if (myField.Name != otherField.Name)
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+
+                    if (myField.Mutable != otherField.Mutable)
+                        throw new Error($"Record '{name}' does not match the record definition", position);
+                }
+                return;
+            }
+            Vm.ExistingRecords.Add(name, record);
+        }
+
+        bool IsBuiltinName(string name) => 
+            !Functions.ContainsKey(name) 
+            && !TryResolveLocal(name, out _) 
+            && !TryResolveGlobal(name, out _);
     }
 }

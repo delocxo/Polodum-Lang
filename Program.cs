@@ -1,4 +1,6 @@
-﻿namespace Polodum
+﻿using System.Text;
+
+namespace Polodum
 {
     internal class Program
     {
@@ -12,10 +14,13 @@
 
             try
             {
+                Vm.RegisterNativeFunctions();
                 Compiler compiler = new Compiler(true);
                 compiler.CompileFile(args[0], new Position(0, 0, ""), true);
                 compiler.AddHalt();
-                //compiler.Chunk.Print();
+                var sb = new StringBuilder();
+                compiler.Chunk.Output(sb, compiler.Functions.Values.ToList());
+                File.WriteAllText("debug", sb.ToString());
                 Vm vm = new Vm(compiler.Chunk);
                 vm.Execute();
             }

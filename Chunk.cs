@@ -70,27 +70,25 @@ namespace Polodum
         public int MakeLocal() => LocalCount++;
         public int MakeGlobal() => GlobalCount++;
 
-        public void Print()
+        public void Output(StringBuilder sb, List<FunctionInfo> functionInfos)
         {
-            for (int i = 0; i < Constants.Count; i++)
+            foreach (var function in functionInfos)
             {
-                Value constant = Constants[i];
-                if (constant.Kind == ValueKind.Function)
-                {
-                    Console.WriteLine("FUNCTION START");
-                    Console.WriteLine($"{constant.ToString()}");
-                    constant.FunctionInfo.Chunk.Print();
-                    Console.WriteLine("FUNCTION END");
-                }
+                string toString = new Value(function).ToString();
+
+                sb.Append($"Function start: {toString}\n");
+                function.Chunk.Output(sb, []);
+                sb.Append($"Function End: {toString}\n");
             }
+
             for (int i = 0; i < Instructions.Count; i++)
             {
                 Instruction instruction = Instructions[i];
-                Console.WriteLine($"Instruction {i}. {instruction.Opcode} {instruction.A} {instruction.B} {instruction.C} {instruction.D}");
+                sb.Append($"Instruction {i}. {instruction.Opcode} {instruction.A} {instruction.B} {instruction.C} {instruction.D} [{string.Join(", ", instruction.Extra)}]\n");
             }
             for (int i = 0; i < Constants.Count; i++)
             {
-                Console.WriteLine($"Constant {i}. {Constants[i].Stringify()}");
+                sb.Append($"Constant {i}. {Constants[i].Stringify()}\n");
             }
         }
     }

@@ -23,7 +23,6 @@ namespace Polodum
         public Position GetPosition(Instruction instruction) => Chunk.Positions[instruction.PositionIndex];
         public Value GetConstant(int index) => Chunk.Constants[index];
         public List<Instruction> Instructions => Chunk.Instructions;
-        public Stack<Value> Stack { get; } = new Stack<Value>(1024);
     }
 
     internal class Vm
@@ -99,7 +98,7 @@ namespace Polodum
             return Value.FromRecord(fields, ValueKind.Enum);
         }
 
-        Dictionary<string, Record> _existingRecords = new Dictionary<string, Record>()
+        public static Dictionary<string, Record> ExistingRecords { get; } = new Dictionary<string, Record>()
         {
             {
                 "Some",
@@ -123,7 +122,7 @@ namespace Polodum
             }
         };
 
-        Dictionary<string, Value> _globals = new Dictionary<string, Value>()
+        public static Dictionary<string, Value> Globals { get; } =  new Dictionary<string, Value>()
         {
             {
                 "input",
@@ -204,34 +203,15 @@ namespace Polodum
             },
         };
 
-        void MatchRecord(string name, Record record, Position position)
+        Stack<Value> stack = new Stack<Value>(1024);
+
+        public static void RegisterNativeFunctions()
         {
-            if (_existingRecords.TryGetValue(name, out Record? other))
-            {
-                if (record.Fields.Count != other.Fields.Count)
-                    throw new Error($"Record '{name}' does not match the record definition", position);
-
-                foreach (var field in record.Fields)
-                {
-                    RecordField myField = field.Value;
-
-                    if (!other.Fields.TryGetValue(field.Key, out RecordField? otherField))
-                        throw new Error($"Record '{name}' does not match the record definition", position);
-
-                    if (myField.Name != otherField.Name)
-                        throw new Error($"Record '{name}' does not match the record definition", position);
-
-                    if (myField.Mutable != otherField.Mutable)
-                        throw new Error($"Record '{name}' does not match the record definition", position);
-                }
-                return;
-            }
-            _existingRecords.Add(name, record);
+            NativeFunctionsRegistry.RegisterAll(Globals);
         }
 
         public Vm(Chunk chunk)
         {
-            NativeFunctionsRegistry.RegisterAll(_globals);
             _vmGlobals = new Value[chunk.GlobalCount];
             _frames.Push(new CallFrame(chunk));
         }
@@ -242,7 +222,6 @@ namespace Polodum
             {
                 CallFrame callFrame = _frames.Peek();
                 Instruction instruction = callFrame.Instructions[callFrame.Ip++];
-                Stack<Value> stack = callFrame.Stack;
 
                 switch (instruction.Opcode)
                 {
@@ -273,10 +252,7 @@ namespace Polodum
                             PoloArray array = new PoloArray(argCount);
 
                             for (int i = 0; i < argCount; i++)
-                                array.Add(default);
-
-                            for (int i = argCount - 1; i >= 0; i--)
-                                array[i] = stack.Pop();
+                                array.Add(stack.Pop());
 
                             stack.Push(new Value(array));
                             break;
@@ -328,7 +304,7 @@ namespace Polodum
                         {
                             string name = callFrame.GetConstant(instruction.A).String;
 
-                            if (_globals.TryGetValue(name, out Value value))
+                            if (Globals.TryGetValue(name, out Value value))
                             {
                                 stack.Push(value);
                                 break;
@@ -775,7 +751,7 @@ namespace Polodum
                             _frames.Pop();
                             if (_frames.Count == 0)
                                 return;
-                            _frames.Peek().Stack.Push(result);
+                            stack.Push(result);
                             break;
                         }
 
@@ -1207,9 +1183,9 @@ namespace Polodum
             string name = callFrame.GetConstant(instruction.A).String;
             int fieldCount = instruction.B;
 
-            Dictionary<string, RecordField> recordFields = new Dictionary<string, RecordField>();
+            Dictionary<string, RecordField> recordFields = new Dictionary<string, RecordField>(fieldCount);
 
-            for (int i = fieldCount - 1; i >= 0; i--)
+            for (int i = 0; i < fieldCount; i++)
             {
                 string fieldName = stack.Pop().String;
                 bool mutable = stack.Pop().Bool;
@@ -1218,13 +1194,9 @@ namespace Polodum
                 recordFields.Add(fieldName, new RecordField(fieldName, mutable, value));
             }
 
-            recordFields = recordFields.Reverse().ToDictionary(x => x.Key, x => x.Value);
-
             int id = ValueKind.Register(name);
 
             Record record = new Record(recordFields, id);
-
-            MatchRecord(name, record, callFrame.GetPosition(instruction));
 
             stack.Push(new Value(record));
         }

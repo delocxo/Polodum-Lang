@@ -91,7 +91,7 @@ namespace Polodum.NativeFunctions
             keys.Set("pageUp", new Value((int)KeyboardKey.PageUp));
             keys.Set("pageDown", new Value((int)KeyboardKey.PageDown));
             keys.Set("home", new Value((int)KeyboardKey.Home));
-            keys.Set("end", new Value((int)KeyboardKey.End));
+            keys.Set("endKey", new Value((int)KeyboardKey.End));
 
             keys.Set("capsLock", new Value((int)KeyboardKey.CapsLock));
             keys.Set("scrollLock", new Value((int)KeyboardKey.ScrollLock));

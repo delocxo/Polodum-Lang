@@ -265,6 +265,9 @@ namespace Polodum
             else if (left.IsKind(ValueKind.Unpack) && right.IsKind(ValueKind.Unpack))
                 return left.Array == right.Array;
 
+            else if (left.IsKind(ValueKind.None))
+                return true;
+
             else if (left.IsRecord && right.IsRecord)
                 return left.Record == right.Record;
 
