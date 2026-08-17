@@ -1,6 +1,7 @@
 ﻿using Raylib_cs;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -349,25 +350,31 @@ namespace Polodum
                 return Vm.MakeNone();
             }));
 
-            draw.Set("drawText", Value.FromNativeExpected("drawText", ["text", "x", "y", "size", "r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("drawText", Value.FromNativeExpected("drawText", ["text", "x", "y", "rotation", "fontSize", "r", "g", "b", "a"], value, (args, pos) =>
             {
                 string title = args[0].ExpectKinds("Expected text", pos, ValueKind.String).String;
                 int x = args[1].ExpectInt(pos);
                 int y = args[2].ExpectInt(pos);
-                int size = args[3].ExpectInt(pos);
+                float rotation = args[3].ExpectFloat32(pos);
+                int fontSize = args[4].ExpectInt(pos);
                 Color color = ExpectColor(args, pos);
-                Raylib.DrawText(title, x, y, size, color);
+                Font font = Raylib.GetFontDefault();
+                float spacing = fontSize * 0.1f;
+                Vector2 textSize = Raylib.MeasureTextEx(font, title, fontSize, spacing);
+                Raylib.DrawTextPro(font, title, new Vector2(x, y), new Vector2(textSize.X / 2f, textSize.Y / 2f), rotation, fontSize, spacing, color);
                 return Vm.MakeNone();
             }));
 
-            draw.Set("drawRect", Value.FromNativeExpected("drawRect", ["x", "y", "width", "height", "r", "g", "b", "a"], value, (args, pos) =>
+            draw.Set("drawRect", Value.FromNativeExpected("drawRect", ["x", "y", "rotation", "width", "height", "r", "g", "b", "a"], value, (args, pos) =>
             {
                 int x = args[0].ExpectInt(pos);
                 int y = args[1].ExpectInt(pos);
-                int width = args[2].ExpectInt(pos);
-                int height = args[3].ExpectInt(pos);
+                float rotation = args[2].ExpectFloat32(pos);
+                int width = args[3].ExpectInt(pos);
+                int height = args[4].ExpectInt(pos);
                 Color color = ExpectColor(args, pos);
-                Raylib.DrawRectangle(x, y, width, height, color);
+                Vector2 origin = new Vector2(width / 2f, height / 2f);
+                Raylib.DrawRectanglePro(new Rectangle(x, y, width, height), origin, rotation, color);
                 return Vm.MakeNone();
             }));
 
@@ -389,6 +396,35 @@ namespace Polodum
                 int endY = args[3].ExpectInt(pos);
                 Color color = ExpectColor(args, pos);
                 Raylib.DrawLine(x, y, endX, endY, color);
+                return Vm.MakeNone();
+            }));
+
+            draw.SetNative(Value.FromNativeExpected("drawPixel", ["x", "y", "r", "g", "b", "a"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                Color color = ExpectColor(args, pos);
+                Raylib.DrawPixel(x, y, color);
+                return Vm.MakeNone();
+            }));
+
+            draw.SetNative(Value.FromNativeExpected("drawCircleLines", ["x", "y", "radius", "r", "g", "b", "a"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                float radius = args[2].ExpectFloat32(pos);
+                Color color = ExpectColor(args, pos);
+                Raylib.DrawCircleLines(x, y, radius, color);
+                return Vm.MakeNone();
+            }));
+
+            draw.SetNative(Value.FromNativeExpected("drawCircleLines", ["x", "y", "radius", "r", "g", "b", "a"], value, (args, pos) =>
+            {
+                int x = args[0].ExpectInt(pos);
+                int y = args[1].ExpectInt(pos);
+                float radius = args[2].ExpectFloat32(pos);
+                Color color = ExpectColor(args, pos);
+                Raylib.DrawCircleLines(x, y, radius, color);
                 return Vm.MakeNone();
             }));
 
